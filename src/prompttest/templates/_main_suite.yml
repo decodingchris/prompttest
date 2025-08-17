@@ -1,0 +1,50 @@
+# This test suite is a tutorial on how to use prompttest.
+
+config:
+  # Specify the prompt to test.
+  # Just use the filename without the .txt extension.
+  prompt: customer_service
+
+  # You can override global settings here.
+  # For example, let's use a different generation model for all the tests in this specific suite.
+  generation_model: "z-ai/glm-4.5-air:free"
+
+tests:
+  # Test 1: Check for a simple greeting
+  # This test demonstrates providing all inputs directly.
+  - id: check-simple-greeting
+    inputs:
+      user_name: "Jane"
+      user_tier: "Standard"
+      product_name: "Chrono-Watch"
+      user_query: "Hello"
+    criteria: "The response must be a simple, polite greeting that addresses the user as 'Jane'."
+
+  # Test 2: Check the return policy
+  # This test demonstrates reusing a single value from `prompttest.yml`.
+  - id: check-return-policy
+    inputs:
+      user_name: "Bob"
+      user_tier: "Standard"
+      product_name: *product_name # single value
+      user_query: "How long do I have to return my watch?"
+    criteria: "The response must correctly state the 30-day return policy for the Chrono-Watch."
+
+  # Test 3: Check for premium member benefits
+  # This test demonstrates reusing a group of values from `prompttest.yml`.
+  # The `<<:` key loads the group.
+  - id: check-premium-support-query
+    inputs:
+      <<: *standard_user # group of values
+      product_name: *product_name
+      user_query: "My watch is running slow, what should I do as a premium member?"
+    criteria: "The response must acknowledge the user's premium status and suggest a free battery replacement for their Chrono-Watch."
+
+  # Test 4: Check for an empathetic tone
+  # This test demonstrates reusing a multi-line value from `prompttest.yml`.
+  - id: check-empathetic-tone
+    inputs:
+      <<: *standard_user
+      product_name: *product_name
+      user_query: "My watch broke already! I only bought it last week. This is ridiculous."
+    criteria: *is_polite # multi-line value

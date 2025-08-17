@@ -1,0 +1,48 @@
+[project]
+name = "prompttest"
+version = "0.1.0"
+description = "An automated testing framework for LLMs."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.28.1",
+    "openai>=1.99.9",
+    "pydantic>=2.11.7",
+    "python-dotenv>=1.1.1",
+    "pyyaml>=6.0.2",
+    "rich>=14.1.0",
+    "typer>=0.16.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.17.1",
+    "pre-commit>=4.3.0",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "ruff>=0.12.9",
+]
+
+[project.scripts]
+prompttest = "prompttest.cli:app"
+
+[tool.uv]
+package = true
+
+[tool.pytest.ini_options]
+addopts = [
+    "--cov=src/prompttest",
+    "--cov-branch",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+]
+
+[tool.coverage.run]
+source = ["src/prompttest"]
+branch = true
+
+
+[tool.coverage.report]
+exclude_lines = [
+    "^if __name__ == .__main__.:$",
+]
