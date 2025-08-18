@@ -1,6 +1,6 @@
 # prompttest
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 pytest for LLMs.
 
@@ -10,9 +10,11 @@ Hold your prompts to the same standard. 😎👌🔥
 
 ## Features
 
-- **🔤 Test in Plain English:** Use an AI judge to test your prompts against criteria written in plain English.
-- **🚀 Write Tests Faster:** Define your test cases in simple YAML—no test functions, no boilerplate, just your data.
-- **🔓 Avoid Vendor Lock-in:** Test your prompts against current and future LLMs through a single, free OpenRouter API key.
+- **🔤 Test in Plain English:** Let an AI judge your prompts using criteria written in English.
+
+- **🚀 Write Tests Faster:** Just list your inputs and criteria in a simple file—no code needed.
+
+- **🔓 Avoid Vendor Lock-in:** Test against any LLM with a single, free OpenRouter API key.
 
 ## Quick Start
 
@@ -34,23 +36,52 @@ prompttest init
 prompttest
 ```
 
+## Example
+
+`prompts/customer_service.txt`
+
+```txt
+---[SYSTEM]---
+You are an expert on the "{product_name}".
+Your responses must be helpful and polite.
+
+---[USER]---
+Customer tier: {user_tier}
+Customer query: {user_query}
+```
+
+`prompttests/test_customer_service.yml`
+
+```yaml
+config:
+  prompt: customer_service
+
+tests:
+  - id: check-simple-greeting
+    inputs:
+      product_name: "Chrono-Watch"
+      user_tier: "Standard"
+      user_query: "Hello"
+    criteria: "The response must be a simple, polite greeting."
+```
+
 ## How It Works
 
-prompttest is built around 3 simple file types:
+prompttest is built around 3 types of files:
 
--   **Prompt:** Your prompt template with `{variables}`.
+-   **Prompt** — a `.txt` file for your prompt template with `---[SECTIONS]---` and `{variables}`.
 
--   **Test:** Your test cases, with `inputs` and the `criteria` for a good response.
+-   **Test** — a `.yml` file for test cases with `config`, `inputs` and `criteria`.
 
--   **Config:** Your `config` for default models and `reusable` test values.
+-   **Config** — a `.yml` file for default settings and `reusable` values.
 
 ## Contributing
 
-We're building the pytest for LLMs, and we need your help.
+We're building the pytest for LLMs—and we need your help.
 
-As an early project, your contributions—from bug reports and feature ideas to code—have a massive impact.
+Report a bug, propose a feature, or contribute a single line.
 
-Help shape a foundational tool for the next wave of AI development.
+Help shape a foundational tool for AI development.
 
 ## License
 
