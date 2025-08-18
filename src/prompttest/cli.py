@@ -1,9 +1,12 @@
+import asyncio
 import typer
 from pathlib import Path
 from rich import print
 from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
+
+from . import runner
 
 app = typer.Typer(
     help="An automated testing framework for LLMs.",
@@ -231,7 +234,9 @@ def run_command():
     """
     Discovers and runs all tests in the `prompttests/` directory.
     """
-    print("TODO: Implement the run command.")
+    exit_code = asyncio.run(runner.run_all_tests())
+    if exit_code > 0:
+        raise typer.Exit(code=exit_code)
 
 
 @app.callback(invoke_without_command=True)

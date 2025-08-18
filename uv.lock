@@ -448,6 +448,7 @@ name = "prompttest"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "anyio" },
     { name = "httpx" },
     { name = "openai" },
     { name = "pydantic" },
@@ -468,6 +469,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", specifier = ">=4.10.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "openai", specifier = ">=1.99.9" },
     { name = "pydantic", specifier = ">=2.11.7" },

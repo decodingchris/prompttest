@@ -10,7 +10,7 @@ Hold your prompts to the same standard. 😎👌🔥
 
 ## Features
 
-- **🔤 Test in Plain English:** Let an AI judge your prompts using criteria written in English.
+- **🔤 Test in Plain English:** Write your tests in English, and let an AI grade the response.
 
 - **🚀 Write Tests Faster:** Just list your inputs and criteria in a simple file—no code needed.
 
