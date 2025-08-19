@@ -20,15 +20,10 @@ class TestCase(BaseModel):
 
 
 class TestSuite(BaseModel):
-    # The Path to the original .yml file
     file_path: Path
-    # The resolved config after merging hierarchy
     config: Config = Field(default_factory=Config)
-    # The list of test cases to run
     tests: List[TestCase] = Field(default_factory=list)
-    # The name of the prompt file (e.g., "customer_service")
     prompt_name: str
-    # The content of the prompt template
     prompt_content: str
 
 
