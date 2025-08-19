@@ -82,7 +82,13 @@ async def run_all_tests() -> int:
     start_time = time.perf_counter()
     try:
         suites = discovery.discover_and_prepare_suites()
-    except (FileNotFoundError, ValueError, EnvironmentError) as e:
+    except FileNotFoundError as e:
+        if discovery.PROMPTTESTS_DIR.name in str(e):
+            ui.render_project_not_initialized(console)
+        else:
+            console.print(f"[bold red]Error:[/bold red] {e}")
+        return 1
+    except (ValueError, EnvironmentError) as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
         return 1
     except Exception:

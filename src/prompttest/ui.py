@@ -25,6 +25,14 @@ def _truncate_text(text: str, max_lines: int) -> str:
     return text
 
 
+def render_project_not_initialized(console: Console) -> None:
+    """Renders a helpful error message when 'prompttests' is not found."""
+    console.print()
+    console.print("[bold red]Error:[/bold red] Directory 'prompttests' not found.")
+    console.print("\nTo get started, initialize prompttest with:")
+    console.print("\n  [bold cyan]prompttest init[/bold cyan]\n")
+
+
 def render_failures(console: Console, results: List[TestResult], run_dir: Path) -> None:
     """Renders a detailed panel for each failed test."""
     failures = [r for r in results if not r.passed]
@@ -133,7 +141,7 @@ def render_summary(
 
 def render_init_header() -> None:
     print()
-    print("[bold]Initializing prompttest project[green]...[/green][/bold]")
+    print("[bold]Initializing prompttest[green]...[/green][/bold]")
 
 
 def render_init_report(

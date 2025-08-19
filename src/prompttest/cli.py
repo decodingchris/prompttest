@@ -13,7 +13,7 @@ app = typer.Typer(
 @app.command()
 def init():
     """
-    Initializes a new prompttest project with an example.
+    Initializes prompttest in the current directory with an example.
     This command is idempotent and non-destructive.
     """
     ui.render_init_header()
