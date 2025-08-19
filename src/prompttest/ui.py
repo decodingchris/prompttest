@@ -87,7 +87,13 @@ def render_suite_header(console: Console, suite: TestSuite) -> None:
     header_table.add_row("Test File:", f"[cyan]{suite.file_path}[/cyan]")
     header_table.add_row("Prompt File:", f"[cyan]{prompt_file_path}[/cyan]")
     header_table.add_row("Generation Model:", suite.config.generation_model or "N/A")
+    header_table.add_row(
+        "Generation Temperature:", str(suite.config.generation_temperature)
+    )
     header_table.add_row("Evaluation Model:", suite.config.evaluation_model or "N/A")
+    header_table.add_row(
+        "Evaluation Temperature:", str(suite.config.evaluation_temperature)
+    )
 
     console.print(Panel(header_table, title="Test Info", expand=False, padding=(1, 2)))
     console.print()

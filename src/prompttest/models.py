@@ -10,7 +10,8 @@ from pydantic import BaseModel, Field
 class Config(BaseModel):
     generation_model: Optional[str] = None
     evaluation_model: Optional[str] = None
-    temperature: float = 0.0
+    generation_temperature: float = 0.0
+    evaluation_temperature: float = 0.0
 
 
 class TestCase(BaseModel):

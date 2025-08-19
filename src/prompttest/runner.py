@@ -39,7 +39,7 @@ async def _run_test_case(
             raise ValueError("`generation_model` is not defined.")
 
         response, gen_cached = await llm.generate(
-            prompt_str, model, suite.config.temperature
+            prompt_str, model, suite.config.generation_temperature
         )
         progress.update(task_id, advance=0.5)
 
@@ -47,7 +47,10 @@ async def _run_test_case(
         if not eval_model:
             raise ValueError("`evaluation_model` is not defined.")
         passed, reason, eval_cached = await llm.evaluate(
-            response, test_case.criteria, eval_model
+            response,
+            test_case.criteria,
+            eval_model,
+            suite.config.evaluation_temperature,
         )
         progress.update(task_id, advance=0.5)
 

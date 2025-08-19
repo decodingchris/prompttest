@@ -105,12 +105,14 @@ def _parse_evaluation(text: str) -> Tuple[bool, str]:
     return False, f"Invalid evaluation format. Full text: {text}"
 
 
-async def evaluate(response: str, criteria: str, model: str) -> Tuple[bool, str, bool]:
+async def evaluate(
+    response: str, criteria: str, model: str, temperature: float
+) -> Tuple[bool, str, bool]:
     eval_prompt = _EVALUATION_PROMPT_TEMPLATE.format(
         criteria=criteria, response=response
     )
     cache_key = _get_cache_key(
-        {"eval_prompt": eval_prompt, "model": model, "temperature": 0.0}
+        {"eval_prompt": eval_prompt, "model": model, "temperature": temperature}
     )
     cached = _read_cache(cache_key)
     if cached:
@@ -121,7 +123,7 @@ async def evaluate(response: str, criteria: str, model: str) -> Tuple[bool, str,
     chat_completion = await client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": eval_prompt}],
-        temperature=0.0,
+        temperature=temperature,
     )
 
     content = ""

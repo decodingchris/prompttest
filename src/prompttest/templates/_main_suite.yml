@@ -6,8 +6,10 @@ config:
   prompt: customer_service
 
   # You can override global settings here.
-  # For example, let's use a different generation model for all the tests in this specific suite.
+  # For example, let's use a different generation model and a higher temperature
+  # for all the tests in this specific suite.
   generation_model: "z-ai/glm-4.5-air:free"
+  generation_temperature: 0.7
 
 tests:
   # Test 1: Check for a simple greeting

@@ -63,9 +63,16 @@ def write_report_file(result: TestResult, run_dir: Path) -> None:
 # {status_emoji} Test {status_text} Report: `{test_id}`
 
 - **Test File**: [{result.suite_path}]({test_file_link})
+
 - **Prompt File**: [{prompt_file_path}]({prompt_file_link})
+
 - **Generation Model**: `{result.config.generation_model}`
+
+- **Generation Temperature**: `{result.config.generation_temperature}`
+
 - **Evaluation Model**: `{result.config.evaluation_model}`
+
+- **Evaluation Temperature**: `{result.config.evaluation_temperature}`
 
 ## Request (Prompt + Values)
 ```text
