@@ -102,6 +102,7 @@ def init():
 
     gitignore_definitions = [
         ("# prompttest cache", ".prompttest_cache/"),
+        ("# Test reports", ".prompttest_reports/"),
         ("# Environment variables", ".env"),
     ]
 

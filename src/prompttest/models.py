@@ -35,6 +35,9 @@ class TestSuite(BaseModel):
 class TestResult(BaseModel):
     test_case: TestCase
     suite_path: Path
+    config: Config
+    prompt_name: str
+    rendered_prompt: str
     passed: bool
     response: str
     evaluation: str

@@ -204,3 +204,6 @@ __marimo__/
 
 # prompttest cache
 .prompttest_cache/
+
+# Test reports
+.prompttest_reports/

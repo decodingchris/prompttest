@@ -7,6 +7,7 @@ import json
 import os
 import time
 from collections import defaultdict
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -35,6 +36,8 @@ from .models import Config, TestCase, TestResult, TestSuite
 PROMPTTESTS_DIR = Path("prompttests")
 PROMPTS_DIR = Path("prompts")
 CACHE_DIR = Path(".prompttest_cache")
+REPORTS_DIR = Path(".prompttest_reports")
+MAX_FAILURE_LINES = 3
 
 _EVALUATION_PROMPT_TEMPLATE = """
 You are an expert evaluator. Your task is to determine if the following AI-generated response strictly adheres to the given criteria.
@@ -110,12 +113,27 @@ async def _generate(prompt: str, model: str, temperature: float) -> Tuple[str, b
         messages=[{"role": "user", "content": prompt}],
         temperature=temperature,
     )
-    content = chat_completion.choices[0].message.content or ""
+
+    content = ""
+    if (
+        chat_completion.choices
+        and chat_completion.choices[0].message
+        and chat_completion.choices[0].message.content is not None
+    ):
+        content = chat_completion.choices[0].message.content
+    else:
+        # Handle cases where the API returns an empty or malformed response
+        # by treating the response as an empty string.
+        pass
+
     _write_cache(cache_key, content)
     return content, False
 
 
 def _parse_evaluation(text: str) -> Tuple[bool, str]:
+    if not text.strip():
+        return False, "Evaluation failed: LLM returned an empty response."
+
     last_line = text.strip().splitlines()[-1]
     if "EVALUATION: PASS" in last_line:
         return True, last_line.replace("EVALUATION: PASS -", "").strip()
@@ -142,7 +160,19 @@ async def _evaluate(response: str, criteria: str, model: str) -> Tuple[bool, str
         messages=[{"role": "user", "content": eval_prompt}],
         temperature=0.0,
     )
-    content = chat_completion.choices[0].message.content or ""
+
+    content = ""
+    if (
+        chat_completion.choices
+        and chat_completion.choices[0].message
+        and chat_completion.choices[0].message.content is not None
+    ):
+        content = chat_completion.choices[0].message.content
+    else:
+        # Handle cases where the API returns an empty or malformed response
+        # by treating the evaluation as an empty string.
+        pass
+
     _write_cache(cache_key, content)
     passed, reason = _parse_evaluation(content)
     return passed, reason, False
@@ -158,6 +188,7 @@ def _format_prompt(template: str, inputs: Dict[str, Any]) -> str:
 async def _run_test_case(
     suite: TestSuite, test_case: TestCase, progress: Progress, task_id: TaskID
 ) -> TestResult:
+    prompt_str = ""
     try:
         prompt_str = _format_prompt(suite.prompt_content, test_case.inputs)
         model = suite.config.generation_model
@@ -180,6 +211,9 @@ async def _run_test_case(
         return TestResult(
             test_case=test_case,
             suite_path=suite.file_path,
+            config=suite.config,
+            prompt_name=suite.prompt_name,
+            rendered_prompt=prompt_str,
             passed=passed,
             response=response,
             evaluation=reason,
@@ -190,6 +224,9 @@ async def _run_test_case(
         return TestResult(
             test_case=test_case,
             suite_path=suite.file_path,
+            config=suite.config,
+            prompt_name=suite.prompt_name,
+            rendered_prompt=prompt_str,
             passed=False,
             response="",
             evaluation="",
@@ -242,35 +279,49 @@ def _discover_and_prepare_suites() -> List[TestSuite]:
             continue
 
         config_paths = _get_config_file_paths(suite_file)
-        all_files_for_parsing = config_paths + [suite_file]
 
-        merged_config_data: Dict[str, Any] = {}
-        for path in all_files_for_parsing:
-            try:
-                data = (
-                    yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.FullLoader)
-                    or {}
-                )
-                if "config" in data:
-                    merged_config_data = _deep_merge(data["config"], merged_config_data)
-            except yaml.YAMLError:
-                pass
+        # 1. Prepare a single YAML document with all anchors available up front.
+        def _indent_block(s: str, spaces: int = 2) -> str:
+            pad = " " * spaces
+            return "\n".join((pad + line if line else line) for line in s.splitlines())
 
-        suite_config = Config(**merged_config_data)
+        if config_paths:
+            # Inject config files under a dummy key to make their anchors available
+            anchors_prelude = "__anchors__:\n" + "\n".join(
+                _indent_block(p.read_text(encoding="utf-8")) for p in config_paths
+            )
+        else:
+            anchors_prelude = "__anchors__: {}\n"
 
-        full_yaml_text = "\n".join(
-            p.read_text(encoding="utf-8") for p in all_files_for_parsing
+        single_doc_text = (
+            anchors_prelude + "\n" + suite_file.read_text(encoding="utf-8")
         )
+
         try:
-            parsed_data = yaml.load(full_yaml_text, Loader=yaml.FullLoader) or {}
+            # Use FullLoader to ensure anchors/aliases are processed
+            parsed_single: Dict[str, Any] = (
+                yaml.load(single_doc_text, Loader=yaml.FullLoader) or {}
+            )
         except yaml.YAMLError as e:
             raise ValueError(
                 f"Error parsing YAML in {suite_file} or its configs: {e}"
             ) from e
 
-        prompt_name = merged_config_data.get("prompt") or parsed_data.get(
-            "config", {}
-        ).get("prompt")
+        # 2. Merge configs with hierarchy (global -> local suite) for override behavior.
+        merged_config_data: Dict[str, Any] = {}
+        for cp in config_paths:
+            doc = (
+                yaml.load(cp.read_text(encoding="utf-8"), Loader=yaml.FullLoader) or {}
+            )
+            merged_config_data = _deep_merge(doc.get("config", {}), merged_config_data)
+
+        # The suite file's config overrides the global configs
+        merged_config_data = _deep_merge(
+            parsed_single.get("config", {}) or {}, merged_config_data
+        )
+        suite_config = Config(**merged_config_data)
+
+        prompt_name = merged_config_data.get("prompt")
         if not prompt_name:
             raise ValueError(f"Suite '{suite_file}' is missing a `prompt` definition.")
 
@@ -279,7 +330,9 @@ def _discover_and_prepare_suites() -> List[TestSuite]:
             raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
 
         prompt_content = prompt_path.read_text(encoding="utf-8")
-        test_cases = [TestCase(**test) for test in parsed_data.get("tests", [])]
+
+        # 3. Tests are taken from the single parsed doc where aliases were resolved.
+        test_cases = [TestCase(**t) for t in (parsed_single.get("tests") or [])]
 
         if test_cases:
             suites.append(
@@ -297,7 +350,65 @@ def _discover_and_prepare_suites() -> List[TestSuite]:
 # --- UI & Reporting ---
 
 
-def _render_failures(console: Console, results: List[TestResult]) -> None:
+def _truncate_text(text: str, max_lines: int) -> str:
+    """Truncates text to a maximum number of lines, adding '[...]' if truncated."""
+    lines = text.strip().splitlines()
+    if len(lines) > max_lines:
+        return "\n".join(lines[:max_lines]) + "\n[...]"
+    return text
+
+
+def _md_rel_path(target: Path, start: Path) -> str:
+    """Return a Markdown-friendly relative path (POSIX-style slashes)."""
+    rel = os.path.relpath(target.resolve(), start.resolve())
+    return rel.replace(os.sep, "/")
+
+
+def _write_report_file(result: TestResult, run_dir: Path) -> None:
+    """Writes a detailed .md file for a single test result."""
+    suite_name = result.suite_path.stem
+    test_id = result.test_case.id
+    filename = f"{suite_name}-{test_id}.md"
+    report_path = run_dir / filename
+
+    status_emoji = "✅" if result.passed else "❌"
+    status_text = "Pass" if result.passed else "Failure"
+
+    prompt_file_path = PROMPTS_DIR / f"{result.prompt_name}.txt"
+
+    # Use relative links so VS Code and most Markdown viewers can open them
+    test_file_link = _md_rel_path(result.suite_path, run_dir)
+    prompt_file_link = _md_rel_path(prompt_file_path, run_dir)
+
+    content = f"""
+# {status_emoji} Test {status_text} Report: `{test_id}`
+
+- **Test File**: [{result.suite_path}]({test_file_link})
+- **Prompt File**: [{prompt_file_path}]({prompt_file_link})
+- **Generation Model**: `{result.config.generation_model}`
+- **Evaluation Model**: `{result.config.evaluation_model}`
+
+## Request (Prompt + Values)
+```text
+{result.rendered_prompt.strip()}
+```
+
+## Criteria
+> {result.test_case.criteria.strip()}
+
+## Response
+{result.response.strip()}
+
+## Evaluation
+> {result.evaluation.strip()}
+    """.strip()
+
+    report_path.write_text(content, encoding="utf-8")
+
+
+def _render_failures(
+    console: Console, results: List[TestResult], run_dir: Path
+) -> None:
     """Renders a detailed panel for each failed test."""
     failures = [r for r in results if not r.passed]
     if not failures:
@@ -309,12 +420,24 @@ def _render_failures(console: Console, results: List[TestResult]) -> None:
         if result.error:
             content = Text(result.error, style="default")
         else:
+            suite_name = result.suite_path.stem
+            test_id = result.test_case.id
+            report_path = run_dir / f"{suite_name}-{test_id}.md"
+
             details_table = Table.grid(padding=(1, 2))
             details_table.add_column(style="bold blue", no_wrap=True)
             details_table.add_column()
-            details_table.add_row("Criteria:", Text(result.test_case.criteria.strip()))
-            details_table.add_row("Response:", Text(result.response.strip()))
-            details_table.add_row("Evaluation:", Text(result.evaluation.strip()))
+            details_table.add_row(
+                "Criteria:",
+                _truncate_text(result.test_case.criteria, MAX_FAILURE_LINES),
+            )
+            details_table.add_row(
+                "Response:", _truncate_text(result.response, MAX_FAILURE_LINES)
+            )
+            details_table.add_row(
+                "Evaluation:", _truncate_text(result.evaluation, MAX_FAILURE_LINES)
+            )
+            details_table.add_row("Full Report:", f"[cyan]{report_path}[/cyan]")
             content = details_table
 
         console.print(
@@ -388,6 +511,11 @@ async def run_all_tests() -> int:
         console.print("[yellow]No tests found.[/yellow]")
         return 0
 
+    REPORTS_DIR.mkdir(exist_ok=True)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    run_dir = REPORTS_DIR / timestamp
+    run_dir.mkdir()
+
     total_tests = sum(len(s.tests) for s in suites)
     progress = Progress(
         TextColumn("[progress.description]{task.description}"),
@@ -396,6 +524,7 @@ async def run_all_tests() -> int:
         TimeElapsedColumn(),
     )
 
+    console.print()
     with Live(progress, console=console, vertical_overflow="visible", transient=True):
         all_results: List[TestResult] = []
         overall_task = progress.add_task("[bold]Running tests", total=total_tests)
@@ -407,7 +536,22 @@ async def run_all_tests() -> int:
             suite_results = await asyncio.gather(*tasks)
             all_results.extend(suite_results)
 
-    console.print()
+    for result in all_results:
+        _write_report_file(result, run_dir)
+
+    latest_symlink = REPORTS_DIR / "latest"
+    if latest_symlink.is_symlink() or latest_symlink.exists():
+        latest_symlink.unlink()
+    try:
+        os.symlink(run_dir.name, latest_symlink, target_is_directory=True)
+    except (OSError, AttributeError):  # Handle Windows/older Python
+        try:
+            os.symlink(run_dir.resolve(), latest_symlink, target_is_directory=True)
+        except OSError:
+            console.print(
+                f"[yellow]Warning:[/yellow] Could not create 'latest' symlink to {run_dir}. "
+                "This might be due to Windows permissions."
+            )
 
     results_by_suite = defaultdict(list)
     for r in all_results:
@@ -424,7 +568,7 @@ async def run_all_tests() -> int:
     passed_count = sum(1 for r in all_results if r.passed)
     failed_count = total_tests - passed_count
 
-    _render_failures(console, all_results)
+    _render_failures(console, all_results, run_dir)
 
     summary_text = Text.from_markup(
         f"[bold red]{failed_count} failed[/bold red], [bold green]{passed_count} passed[/bold green] in {elapsed_time:.2f}s"
