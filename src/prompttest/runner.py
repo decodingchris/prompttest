@@ -112,6 +112,7 @@ async def run_all_tests() -> int:
     )
 
     console.print()
+
     with Live(progress, console=console, vertical_overflow="visible", transient=True):
         all_results: List[TestResult] = []
         overall_task = progress.add_task("[bold]Running tests", total=total_tests)
@@ -132,19 +133,16 @@ async def run_all_tests() -> int:
     for r in all_results:
         results_by_suite[r.suite_path].append(r)
 
-    for i, suite in enumerate(suites):
-        suite_results = results_by_suite[suite.file_path]
-        ui.render_suite_header(console, suite)
-        ui.render_suite_results(console, suite_results)
-        if i < len(suites) - 1:
-            console.print()
+    sorted_suites = sorted(suites, key=lambda s: s.file_path)
 
-    ui.render_failures(console, all_results, run_dir)
+    for suite in sorted_suites:
+        suite_results = results_by_suite[suite.file_path]
+        ui.render_suite_report(console, suite, suite_results, run_dir)
+        console.print()
 
     elapsed_time = time.perf_counter() - start_time
-    passed_count = sum(1 for r in all_results if r.passed)
-    failed_count = total_tests - passed_count
+    ui.render_summary(console, all_results, elapsed_time)
+    console.print()
 
-    ui.render_summary(console, total_tests, passed_count, elapsed_time)
-
+    failed_count = sum(1 for r in all_results if not r.passed)
     return 1 if failed_count > 0 else 0

@@ -49,6 +49,8 @@ def discover_and_prepare_suites() -> List[TestSuite]:
         PROMPTTESTS_DIR.rglob("*.yaml")
     )
 
+    suite_files.sort()
+
     for suite_file in suite_files:
         if suite_file.name == "prompttest.yml":
             continue

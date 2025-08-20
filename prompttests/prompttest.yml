@@ -1,0 +1,35 @@
+# This is the global configuration file for prompttest.
+# Settings and reusable components here are available to ALL test suites.
+# For larger projects, you can add a `prompttest.yml` in subdirectories
+# for more localized, shared components.
+
+# A note on free models from OpenRouter:
+# Using models marked with ":free" is a great way to test without cost.
+# However, be aware that your prompts and completions may be used by the
+# model provider to train future models. For sensitive data, consider
+# using a paid model instead.
+
+config:
+  # Model used to generate the response from your prompt.
+  generation_model: "openai/gpt-oss-20b:free"
+  # Temperature for generation. 0.0 is deterministic, 1.0 is creative.
+  generation_temperature: 0.0
+
+  # Model used to evaluate if the response meets the criteria.
+  evaluation_model: "mistralai/mistral-small-3.2-24b-instruct:free"
+  # Temperature for evaluation. It's best to keep this at 0.0 for consistency.
+  evaluation_temperature: 0.0
+
+reusable:
+  inputs:
+    # A single, reusable value.
+    product_name: &product_name "Chrono-Watch"
+    # A group of reusable values.
+    standard_user: &standard_user
+      user_name: "Alex"
+      user_tier: "Premium"
+  criteria:
+    # A multi-line, reusable value.
+    is_polite: &is_polite >
+      The response must be polite, friendly, and helpful. It should adopt
+      an empathetic tone, especially if the user seems frustrated or angry.
