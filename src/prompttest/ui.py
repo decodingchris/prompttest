@@ -45,7 +45,12 @@ def _create_failure_panels(results: List[TestResult], run_dir: Path) -> List[Pan
         failure_title = f"[bold red]❌ {result.test_case.id}[/bold red]"
         content: Any
         if result.error:
-            content = Text(result.error, style="default")
+            error_text = Text.from_markup(
+                f"[bold red]API Error:[/bold red] {result.error}\n\n"
+                "[dim]Tip: This is often a temporary issue with the model provider. "
+                "Try running the test again in a few moments.[/dim]"
+            )
+            content = error_text
         else:
             suite_name = result.suite_path.stem
             test_id = result.test_case.id
@@ -62,8 +67,7 @@ def _create_failure_panels(results: List[TestResult], run_dir: Path) -> List[Pan
                 "Response:", _truncate_text(result.response, MAX_FAILURE_LINES)
             )
             details_table.add_row(
-                "Evaluation:",
-                f"[orange1]{_truncate_text(result.evaluation, MAX_FAILURE_LINES)}[/orange1]",
+                "Evaluation:", _truncate_text(result.evaluation, MAX_FAILURE_LINES)
             )
             details_table.add_row("Full Report:", f"[cyan]{report_path}[/cyan]")
             content = details_table
@@ -138,7 +142,10 @@ def render_suite_report(
     if failure_panels:
         report_items.append("")
         report_items.append("")
-        report_items.extend(failure_panels)
+        for i, panel in enumerate(failure_panels):
+            report_items.append(panel)
+            if i < len(failure_panels) - 1:
+                report_items.append("")
 
     report_group = Group(*report_items)
 

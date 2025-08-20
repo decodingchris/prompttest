@@ -13,6 +13,13 @@ from dotenv import load_dotenv
 
 CACHE_DIR = Path(".prompttest_cache")
 
+
+class LLMError(Exception):
+    """Custom exception for LLM-related errors."""
+
+    pass
+
+
 _EVALUATION_PROMPT_TEMPLATE = """
 You are an expert evaluator. Your task is to determine if the following AI-generated response strictly adheres to the given criteria.
 
@@ -73,11 +80,24 @@ async def generate(prompt: str, model: str, temperature: float) -> Tuple[str, bo
         return cached, True
 
     client = get_client()
-    chat_completion = await client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=temperature,
-    )
+    try:
+        chat_completion = await client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+        )
+    except openai.APIStatusError as e:
+        status = e.status_code
+        message = f"API returned a non-200 status code: {status}."
+        if isinstance(e.body, dict):
+            provider = e.body.get("error", {}).get("metadata", {}).get("provider_name")
+            provider_msg = f" from provider '{provider}'" if provider else ""
+            message = f"API returned a {status} status code{provider_msg}. The service may be temporarily unavailable."
+        raise LLMError(message) from e
+    except openai.APIConnectionError as e:
+        raise LLMError(
+            f"Could not connect to the API. Please check your network connection. Details: {e.__cause__}"
+        ) from e
 
     content = ""
     if (
@@ -120,11 +140,24 @@ async def evaluate(
         return passed, reason, True
 
     client = get_client()
-    chat_completion = await client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": eval_prompt}],
-        temperature=temperature,
-    )
+    try:
+        chat_completion = await client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": eval_prompt}],
+            temperature=temperature,
+        )
+    except openai.APIStatusError as e:
+        status = e.status_code
+        message = f"API returned a non-200 status code: {status}."
+        if isinstance(e.body, dict):
+            provider = e.body.get("error", {}).get("metadata", {}).get("provider_name")
+            provider_msg = f" from provider '{provider}'" if provider else ""
+            message = f"API returned a {status} status code{provider_msg}. The service may be temporarily unavailable."
+        raise LLMError(message) from e
+    except openai.APIConnectionError as e:
+        raise LLMError(
+            f"Could not connect to the API. Please check your network connection. Details: {e.__cause__}"
+        ) from e
 
     content = ""
     if (

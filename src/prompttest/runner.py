@@ -18,6 +18,7 @@ from rich.progress import (
 )
 
 from . import discovery, llm, reporting, ui
+from .llm import LLMError
 from .models import TestCase, TestResult, TestSuite
 
 
@@ -64,6 +65,19 @@ async def _run_test_case(
             response=response,
             evaluation=reason,
             is_cached=gen_cached and eval_cached,
+        )
+    except LLMError as e:
+        progress.update(task_id, advance=1)
+        return TestResult(
+            test_case=test_case,
+            suite_path=suite.file_path,
+            config=suite.config,
+            prompt_name=suite.prompt_name,
+            rendered_prompt=prompt_str,
+            passed=False,
+            response="",
+            evaluation="",
+            error=str(e),
         )
     except Exception as e:
         progress.update(task_id, advance=1)
