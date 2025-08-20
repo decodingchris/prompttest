@@ -10,6 +10,35 @@ from . import discovery, runner, ui
 app = typer.Typer(help="An automated testing framework for LLMs.")
 
 
+def _execute_run(
+    *,
+    patterns: List[str] | None,
+    test_file: List[str] | None,
+    test_id: List[str] | None,
+    max_concurrency: int | None,
+) -> int:
+    """
+    Shared path for running tests from both the 'run' command and the default callback.
+    Preserves current behavior:
+    - If no filters/max_concurrency are provided, call runner.run_all_tests() with no kwargs
+      to keep tests expecting the exact call signature passing.
+    - Otherwise, forward computed kwargs.
+    """
+    pos_file_globs, pos_id_globs = _classify_patterns(patterns or [])
+    all_file_globs = (test_file or []) + pos_file_globs
+    all_id_globs = (test_id or []) + pos_id_globs
+
+    if all_file_globs or all_id_globs or max_concurrency is not None:
+        return asyncio.run(
+            runner.run_all_tests(
+                test_file_globs=all_file_globs or None,
+                test_id_globs=all_id_globs or None,
+                max_concurrency=max_concurrency,
+            )
+        )
+    return asyncio.run(runner.run_all_tests())
+
+
 @app.command()
 def init():
     """
@@ -230,20 +259,12 @@ def run_command(
     Discovers and runs tests in the `prompttests/` directory.
     Positional patterns are a friendly shorthand for --test-file and --test-id.
     """
-    pos_file_globs, pos_id_globs = _classify_patterns(patterns or [])
-    all_file_globs = (test_file or []) + pos_file_globs
-    all_id_globs = (test_id or []) + pos_id_globs
-
-    if all_file_globs or all_id_globs or max_concurrency is not None:
-        exit_code = asyncio.run(
-            runner.run_all_tests(
-                test_file_globs=all_file_globs or None,
-                test_id_globs=all_id_globs or None,
-                max_concurrency=max_concurrency,
-            )
-        )
-    else:
-        exit_code = asyncio.run(runner.run_all_tests())
+    exit_code = _execute_run(
+        patterns=patterns,
+        test_file=test_file,
+        test_id=test_id,
+        max_concurrency=max_concurrency,
+    )
     if exit_code > 0:
         raise typer.Exit(code=exit_code)
 
@@ -257,18 +278,12 @@ def main(ctx: typer.Context):
     otherwise swallow subcommands like `init`.
     """
     if ctx.invoked_subcommand is None:
-        patterns = list(ctx.args)
-        pos_file_globs, pos_id_globs = _classify_patterns(patterns)
-
-        if pos_file_globs or pos_id_globs:
-            exit_code = asyncio.run(
-                runner.run_all_tests(
-                    test_file_globs=pos_file_globs or None,
-                    test_id_globs=pos_id_globs or None,
-                )
-            )
-        else:
-            exit_code = asyncio.run(runner.run_all_tests())
+        exit_code = _execute_run(
+            patterns=list(ctx.args),
+            test_file=None,
+            test_id=None,
+            max_concurrency=None,
+        )
 
         if exit_code > 0:
             raise typer.Exit(code=exit_code)

@@ -77,6 +77,23 @@ def discover_and_prepare_suites() -> List[TestSuite]:
             pad = " " * spaces
             return "\n".join((pad + line if line else line) for line in s.splitlines())
 
+        # We prepend a synthetic top-level mapping "__anchors__" that contains the raw
+        # contents of each prompttest.yml from the root down to the suite's directory.
+        #
+        # Why is this safe?
+        # - YAML anchors (&name) are scoped to the document and can be defined anywhere
+        #   earlier in the document than their use. By prepending these files (in order),
+        #   any anchors defined there are available to be referenced by the suite file.
+        # - Keys within the "__anchors__" mapping (e.g., "config", "reusable") are not
+        #   used semantically; only the side effect of defining anchors/aliases matters.
+        #   PyYAML's safe_load tolerates duplicate keys in a mapping (last one wins).
+        # - The actual configuration merge for "config" happens separately below by
+        #   loading each config file and deep-merging the "config" blocks. That means
+        #   potential duplicate keys inside "__anchors__" do not affect the merged
+        #   configuration we apply to the suite.
+        # - We explicitly check for duplicate anchor NAMES across files and raise a
+        #   helpful error if they collide (see duplicate detection above).
+
         if config_paths:
             texts = [_read_text_cached(p) for p in config_paths]
             seen: dict[str, Path] = {}
