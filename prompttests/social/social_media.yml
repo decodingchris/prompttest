@@ -13,7 +13,6 @@ tests:
       topic: "The launch of our new AI-powered analytics tool, 'InsightSphere'."
       tone: "Professional and informative"
       hashtags_count: 3
-      include_emoji: "No"
     criteria: >
       The post must be written in a professional tone suitable for LinkedIn.
       It must not contain any emojis.
