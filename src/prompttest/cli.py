@@ -1,13 +1,13 @@
 # src/prompttest/cli.py
 import asyncio
-import typer
 from pathlib import Path
+from typing import List, Tuple
 
-from . import runner, ui
+import typer
 
-app = typer.Typer(
-    help="An automated testing framework for LLMs.",
-)
+from . import discovery, runner, ui
+
+app = typer.Typer(help="An automated testing framework for LLMs.")
 
 
 @app.command()
@@ -137,12 +137,113 @@ def init():
     ui.render_init_next_steps()
 
 
+def _classify_patterns(patterns: List[str]) -> Tuple[List[str], List[str]]:
+    """
+    Split positional patterns into file globs (under prompttests/) and test-id globs.
+    Supports bare names (without .yml/.yaml) and subpaths.
+    """
+    id_globs: list[str] = []
+
+    pt_dir = discovery.PROMPTTESTS_DIR
+    pt_exists = pt_dir.is_dir()
+
+    def has_sep(s: str) -> bool:
+        return ("/" in s) or ("\\" in s)
+
+    def has_yml_ext(s: str) -> bool:
+        s2 = s.lower()
+        return s2.endswith(".yml") or s2.endswith(".yaml")
+
+    file_patterns: set[str] = set()
+
+    for tok in patterns or []:
+        if has_yml_ext(tok):
+            file_patterns.add(tok)
+            if not has_sep(tok):
+                file_patterns.add(f"**/{tok}")
+            continue
+
+        if not pt_exists:
+            id_globs.append(tok)
+            continue
+
+        candidates: list[str] = []
+        if has_sep(tok):
+            candidates += [tok, f"{tok}.yml", f"{tok}.yaml"]
+        else:
+            candidates += [
+                tok,
+                f"{tok}.yml",
+                f"{tok}.yaml",
+                f"**/{tok}.yml",
+                f"**/{tok}.yaml",
+            ]
+
+        matched = False
+        for c in candidates:
+            matches = [p for p in pt_dir.rglob(c) if p.is_file()]
+            if matches:
+                matched = True
+                if not has_sep(tok) and not has_yml_ext(tok):
+                    file_patterns.add(f"**/{tok}.yml")
+                    file_patterns.add(f"**/{tok}.yaml")
+                else:
+                    if has_yml_ext(c):
+                        file_patterns.add(c)
+                    else:
+                        file_patterns.add(f"{tok}.yml")
+                        file_patterns.add(f"{tok}.yaml")
+                break
+
+        if matched:
+            continue
+
+        id_globs.append(tok)
+
+    return sorted(file_patterns), id_globs
+
+
 @app.command(name="run")
-def run_command():
+def run_command(
+    patterns: List[str] | None = typer.Argument(
+        None,
+        help="Positional filters: test-file globs (e.g., sub/*.yml) or test-id globs (e.g., check-*).",
+    ),
+    test_file: List[str] | None = typer.Option(
+        None,
+        "--test-file",
+        help="Filter test files (globs) under 'prompttests/'. Repeatable.",
+    ),
+    test_id: List[str] | None = typer.Option(
+        None,
+        "--test-id",
+        help="Filter test ids by glob. Repeatable.",
+    ),
+    max_concurrency: int | None = typer.Option(
+        None,
+        "--max-concurrency",
+        min=1,
+        help="Cap the number of test cases executed concurrently.",
+    ),
+):
     """
-    Discovers and runs all tests in the `prompttests/` directory.
+    Discovers and runs tests in the `prompttests/` directory.
+    Positional patterns are a friendly shorthand for --test-file and --test-id.
     """
-    exit_code = asyncio.run(runner.run_all_tests())
+    pos_file_globs, pos_id_globs = _classify_patterns(patterns or [])
+    all_file_globs = (test_file or []) + pos_file_globs
+    all_id_globs = (test_id or []) + pos_id_globs
+
+    if all_file_globs or all_id_globs or max_concurrency is not None:
+        exit_code = asyncio.run(
+            runner.run_all_tests(
+                test_file_globs=all_file_globs or None,
+                test_id_globs=all_id_globs or None,
+                max_concurrency=max_concurrency,
+            )
+        )
+    else:
+        exit_code = asyncio.run(runner.run_all_tests())
     if exit_code > 0:
         raise typer.Exit(code=exit_code)
 
@@ -150,11 +251,24 @@ def run_command():
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context):
     """
-    If no command is specified, run the `run` command.
+    If no subcommand is provided, run the `run` command.
+    We forward any leftover CLI args (ctx.args) as positional patterns to `run`.
+    This avoids defining a positional Argument on the callback, which would
+    otherwise swallow subcommands like `init`.
     """
     if ctx.invoked_subcommand is None:
-        ctx.invoke(run_command)
+        patterns = list(ctx.args)
+        pos_file_globs, pos_id_globs = _classify_patterns(patterns)
 
+        if pos_file_globs or pos_id_globs:
+            exit_code = asyncio.run(
+                runner.run_all_tests(
+                    test_file_globs=pos_file_globs or None,
+                    test_id_globs=pos_id_globs or None,
+                )
+            )
+        else:
+            exit_code = asyncio.run(runner.run_all_tests())
 
-if __name__ == "__main__":
-    app()
+        if exit_code > 0:
+            raise typer.Exit(code=exit_code)

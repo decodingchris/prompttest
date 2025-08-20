@@ -16,8 +16,16 @@ REPORTS_DIR = Path(".prompttest_reports")
 def create_run_directory() -> Path:
     """Creates the main reports directory and a timestamped subdirectory for the current run."""
     REPORTS_DIR.mkdir(exist_ok=True)
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
     run_dir = REPORTS_DIR / timestamp
+    if run_dir.exists():
+        i = 1
+        while True:
+            alt_dir = REPORTS_DIR / f"{timestamp}-{i}"
+            if not alt_dir.exists():
+                run_dir = alt_dir
+                break
+            i += 1
     run_dir.mkdir()
     return run_dir
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional, Tuple
@@ -68,7 +69,9 @@ def _read_cache(key: str) -> Optional[str]:
 def _write_cache(key: str, value: str) -> None:
     CACHE_DIR.mkdir(exist_ok=True)
     cache_file = CACHE_DIR / key
-    cache_file.write_text(value, "utf-8")
+    tmp_file = CACHE_DIR / f".{key}.tmp"
+    tmp_file.write_text(value, "utf-8")
+    tmp_file.replace(cache_file)
 
 
 async def generate(prompt: str, model: str, temperature: float) -> Tuple[str, bool]:
@@ -114,14 +117,15 @@ async def generate(prompt: str, model: str, temperature: float) -> Tuple[str, bo
 
 
 def _parse_evaluation(text: str) -> Tuple[bool, str]:
-    if not text.strip():
+    s = text.strip()
+    if not s:
         return False, "Evaluation failed: LLM returned an empty response."
 
-    last_line = text.strip().splitlines()[-1]
-    if "EVALUATION: PASS" in last_line:
-        return True, last_line.replace("EVALUATION: PASS -", "").strip()
-    if "EVALUATION: FAIL" in last_line:
-        return False, last_line.replace("EVALUATION: FAIL -", "").strip()
+    for line in reversed(s.splitlines()):
+        m = re.match(r"\s*EVALUATION:\s*(PASS|FAIL)\s*-\s*(.*)$", line, flags=re.I)
+        if m:
+            kind, reason = m.groups()
+            return (kind.upper() == "PASS"), reason.strip()
     return False, f"Invalid evaluation format. Full text: {text}"
 
 

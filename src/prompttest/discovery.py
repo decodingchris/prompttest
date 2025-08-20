@@ -1,6 +1,8 @@
 # src/prompttest/discovery.py
 from __future__ import annotations
 
+import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -40,6 +42,20 @@ def _get_config_file_paths(start_path: Path) -> List[Path]:
     return list(reversed(paths_to_check))
 
 
+@lru_cache(maxsize=None)
+def _read_text_cached(p: Path) -> str:
+    return p.read_text(encoding="utf-8")
+
+
+@lru_cache(maxsize=None)
+def _load_yaml_file(p: Path) -> Dict[str, Any]:
+    return yaml.safe_load(_read_text_cached(p)) or {}
+
+
+def _find_anchors(yaml_text: str) -> set[str]:
+    return set(re.findall(r"&([A-Za-z0-9_]+)", yaml_text))
+
+
 def discover_and_prepare_suites() -> List[TestSuite]:
     if not PROMPTTESTS_DIR.is_dir():
         raise FileNotFoundError(f"Directory '{PROMPTTESTS_DIR}' not found.")
@@ -62,20 +78,32 @@ def discover_and_prepare_suites() -> List[TestSuite]:
             return "\n".join((pad + line if line else line) for line in s.splitlines())
 
         if config_paths:
+            texts = [_read_text_cached(p) for p in config_paths]
+            seen: dict[str, Path] = {}
+            dupes: List[tuple[str, Path, Path]] = []
+            for p, txt in zip(config_paths, texts):
+                for a in _find_anchors(txt):
+                    if a in seen:
+                        dupes.append((a, seen[a], p))
+                    else:
+                        seen[a] = p
+            if dupes:
+                lines = "\n".join(f"- {a}: {p1} and {p2}" for a, p1, p2 in dupes)
+                raise ValueError(
+                    "Duplicate YAML anchor names found across config files.\n"
+                    "Anchors must be unique within a suite. Rename the conflicting anchors:\n"
+                    f"{lines}"
+                )
             anchors_prelude = "__anchors__:\n" + "\n".join(
-                _indent_block(p.read_text(encoding="utf-8")) for p in config_paths
+                _indent_block(txt) for txt in texts
             )
         else:
             anchors_prelude = "__anchors__: {}\n"
 
-        single_doc_text = (
-            anchors_prelude + "\n" + suite_file.read_text(encoding="utf-8")
-        )
+        single_doc_text = anchors_prelude + "\n" + _read_text_cached(suite_file)
 
         try:
-            parsed_single: Dict[str, Any] = (
-                yaml.load(single_doc_text, Loader=yaml.FullLoader) or {}
-            )
+            parsed_single: Dict[str, Any] = yaml.safe_load(single_doc_text) or {}
         except yaml.YAMLError as e:
             raise ValueError(
                 f"Error parsing YAML in {suite_file} or its configs: {e}"
@@ -83,9 +111,7 @@ def discover_and_prepare_suites() -> List[TestSuite]:
 
         merged_config_data: Dict[str, Any] = {}
         for cp in config_paths:
-            doc = (
-                yaml.load(cp.read_text(encoding="utf-8"), Loader=yaml.FullLoader) or {}
-            )
+            doc = _load_yaml_file(cp)
             merged_config_data = _deep_merge(doc.get("config", {}), merged_config_data)
 
         merged_config_data = _deep_merge(

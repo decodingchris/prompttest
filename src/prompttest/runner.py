@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import asyncio
+import fnmatch
+import re
 import time
 from collections import defaultdict
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from rich.console import Console
 from rich.live import Live
@@ -21,12 +23,15 @@ from . import discovery, llm, reporting, ui
 from .llm import LLMError
 from .models import TestCase, TestResult, TestSuite
 
+_PLACEHOLDER_RE = re.compile(r"\{([A-Za-z0-9_]+)\}")
+
 
 def _format_prompt(template: str, inputs: Dict[str, Any]) -> str:
-    filled_template = template
-    for key, value in inputs.items():
-        filled_template = filled_template.replace(f"{{{key}}}", str(value))
-    return filled_template
+    def repl(m: re.Match[str]) -> str:
+        key = m.group(1)
+        return str(inputs.get(key, m.group(0)))
+
+    return _PLACEHOLDER_RE.sub(repl, template)
 
 
 async def _run_test_case(
@@ -94,7 +99,28 @@ async def _run_test_case(
         )
 
 
-async def run_all_tests() -> int:
+def _match_any(value: str, patterns: List[str]) -> bool:
+    return any(fnmatch.fnmatch(value, pat) for pat in patterns)
+
+
+def _suite_matches_globs(suite: TestSuite, globs: List[str]) -> bool:
+    if not globs:
+        return True
+    full = str(suite.file_path)
+    name = suite.file_path.name
+    try:
+        rel = str(suite.file_path.relative_to(discovery.PROMPTTESTS_DIR))
+    except Exception:
+        rel = name
+    return _match_any(full, globs) or _match_any(rel, globs) or _match_any(name, globs)
+
+
+async def run_all_tests(
+    *,
+    test_file_globs: Optional[List[str]] = None,
+    test_id_globs: Optional[List[str]] = None,
+    max_concurrency: Optional[int] = None,
+) -> int:
     console = Console()
     start_time = time.perf_counter()
     try:
@@ -116,6 +142,21 @@ async def run_all_tests() -> int:
         console.print("[yellow]No tests found.[/yellow]")
         return 0
 
+    # Apply optional filters
+    test_file_globs = test_file_globs or []
+    test_id_globs = test_id_globs or []
+
+    if test_file_globs:
+        suites = [s for s in suites if _suite_matches_globs(s, test_file_globs)]
+    if test_id_globs:
+        for s in suites:
+            s.tests = [t for t in s.tests if _match_any(t.id, test_id_globs)]
+        suites = [s for s in suites if s.tests]
+
+    if not suites:
+        console.print("[yellow]No tests found.[/yellow]")
+        return 0
+
     run_dir = reporting.create_run_directory()
     total_tests = sum(len(s.tests) for s in suites)
     progress = Progress(
@@ -127,13 +168,25 @@ async def run_all_tests() -> int:
 
     console.print()
 
+    # Optional concurrency cap (defaults to unlimited)
+    sem: Optional[asyncio.Semaphore] = (
+        asyncio.Semaphore(max_concurrency) if max_concurrency else None
+    )
+
+    async def _maybe_bounded(coro):
+        if sem is None:
+            return await coro
+        async with sem:
+            return await coro
+
     with Live(progress, console=console, vertical_overflow="visible", transient=True):
         all_results: List[TestResult] = []
         overall_task = progress.add_task("[bold]Running tests", total=total_tests)
 
         for suite in suites:
             tasks = [
-                _run_test_case(suite, tc, progress, overall_task) for tc in suite.tests
+                _maybe_bounded(_run_test_case(suite, tc, progress, overall_task))
+                for tc in suite.tests
             ]
             suite_results = await asyncio.gather(*tasks)
             all_results.extend(suite_results)
