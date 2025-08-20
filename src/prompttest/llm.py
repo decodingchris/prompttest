@@ -74,6 +74,38 @@ def _write_cache(key: str, value: str) -> None:
     tmp_file.replace(cache_file)
 
 
+async def _chat_completions_create(
+    *,
+    model: str,
+    messages: Any,
+    temperature: float,
+):
+    """
+    Centralized wrapper for client.chat.completions.create with consistent error translation.
+    'messages' is typed as Any to satisfy the OpenAI SDK's broad union of message param types.
+    """
+    client = get_client()
+    try:
+        return await client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+        )
+    except openai.APIStatusError as e:
+        status = getattr(e, "status_code", None)
+        message = f"API returned a non-200 status code: {status}."
+        body = getattr(e, "body", None)
+        if isinstance(body, dict):
+            provider = body.get("error", {}).get("metadata", {}).get("provider_name")
+            provider_msg = f" from provider '{provider}'" if provider else ""
+            message = f"API returned a {status} status code{provider_msg}. The service may be temporarily unavailable."
+        raise LLMError(message) from e
+    except openai.APIConnectionError as e:
+        raise LLMError(
+            f"Could not connect to the API. Please check your network connection. Details: {getattr(e, '__cause__', None)}"
+        ) from e
+
+
 async def generate(prompt: str, model: str, temperature: float) -> Tuple[str, bool]:
     cache_key = _get_cache_key(
         {"prompt": prompt, "model": model, "temperature": temperature}
@@ -82,25 +114,11 @@ async def generate(prompt: str, model: str, temperature: float) -> Tuple[str, bo
     if cached:
         return cached, True
 
-    client = get_client()
-    try:
-        chat_completion = await client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temperature,
-        )
-    except openai.APIStatusError as e:
-        status = e.status_code
-        message = f"API returned a non-200 status code: {status}."
-        if isinstance(e.body, dict):
-            provider = e.body.get("error", {}).get("metadata", {}).get("provider_name")
-            provider_msg = f" from provider '{provider}'" if provider else ""
-            message = f"API returned a {status} status code{provider_msg}. The service may be temporarily unavailable."
-        raise LLMError(message) from e
-    except openai.APIConnectionError as e:
-        raise LLMError(
-            f"Could not connect to the API. Please check your network connection. Details: {e.__cause__}"
-        ) from e
+    chat_completion = await _chat_completions_create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=temperature,
+    )
 
     content = ""
     if (
@@ -143,25 +161,11 @@ async def evaluate(
         passed, reason = _parse_evaluation(cached)
         return passed, reason, True
 
-    client = get_client()
-    try:
-        chat_completion = await client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": eval_prompt}],
-            temperature=temperature,
-        )
-    except openai.APIStatusError as e:
-        status = e.status_code
-        message = f"API returned a non-200 status code: {status}."
-        if isinstance(e.body, dict):
-            provider = e.body.get("error", {}).get("metadata", {}).get("provider_name")
-            provider_msg = f" from provider '{provider}'" if provider else ""
-            message = f"API returned a {status} status code{provider_msg}. The service may be temporarily unavailable."
-        raise LLMError(message) from e
-    except openai.APIConnectionError as e:
-        raise LLMError(
-            f"Could not connect to the API. Please check your network connection. Details: {e.__cause__}"
-        ) from e
+    chat_completion = await _chat_completions_create(
+        model=model,
+        messages=[{"role": "user", "content": eval_prompt}],
+        temperature=temperature,
+    )
 
     content = ""
     if (

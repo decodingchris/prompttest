@@ -33,8 +33,26 @@ def create_run_directory() -> Path:
 def create_latest_symlink(run_dir: Path, console: Console) -> None:
     """Creates/updates a 'latest' symlink pointing to the most recent run directory."""
     latest_symlink = REPORTS_DIR / "latest"
-    if latest_symlink.is_symlink() or latest_symlink.exists():
-        latest_symlink.unlink()
+    if latest_symlink.is_symlink():
+        try:
+            latest_symlink.unlink()
+        except OSError:
+            console.print(
+                "[yellow]Warning:[/yellow] Could not remove existing symlink 'latest'."
+            )
+            return
+    elif latest_symlink.exists():
+        try:
+            if latest_symlink.is_dir():
+                latest_symlink.rmdir()
+            else:
+                latest_symlink.unlink()
+        except OSError:
+            console.print(
+                f"[yellow]Warning:[/yellow] Cannot replace existing 'latest' at {latest_symlink}. "
+                "It is not a symlink and could not be removed."
+            )
+            return
     try:
         os.symlink(run_dir.name, latest_symlink, target_is_directory=True)
     except (OSError, AttributeError):
