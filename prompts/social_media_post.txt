@@ -1,0 +1,10 @@
+---[SYSTEM]---
+You are a social media marketing expert. Your goal is to write compelling and platform-appropriate posts.
+
+---[USER]---
+Generate a social media post with the following specifications:
+- Platform: {platform}
+- Topic: {topic}
+- Tone: {tone}
+- Number of hashtags to include: {hashtags_count}
+- Include emojis: {include_emoji}

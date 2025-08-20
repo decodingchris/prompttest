@@ -67,7 +67,8 @@ def _create_failure_panels(results: List[TestResult], run_dir: Path) -> List[Pan
                 "Response:", _truncate_text(result.response, MAX_FAILURE_LINES)
             )
             details_table.add_row(
-                "Evaluation:", _truncate_text(result.evaluation, MAX_FAILURE_LINES)
+                "Evaluation:",
+                f"[orange1]{_truncate_text(result.evaluation, MAX_FAILURE_LINES)}[/orange1]",
             )
             details_table.add_row("Full Report:", f"[cyan]{report_path}[/cyan]")
             content = details_table
