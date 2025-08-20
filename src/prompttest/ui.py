@@ -5,8 +5,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from rich import print
 from rich import box
+from rich import print
 from rich.console import Console, Group, RenderableType
 from rich.panel import Panel
 from rich.table import Table
@@ -68,7 +68,7 @@ def _create_failure_panels(results: List[TestResult], run_dir: Path) -> List[Pan
             )
             details_table.add_row(
                 "Evaluation:",
-                f"[orange1]{_truncate_text(result.evaluation, MAX_FAILURE_LINES)}[/orange1]",
+                f"[bold orange1]{_truncate_text(result.evaluation, MAX_FAILURE_LINES)}[/bold orange1]",
             )
             details_table.add_row("Full Report:", f"[cyan]{report_path}[/cyan]")
             content = details_table
@@ -173,6 +173,8 @@ def render_summary(
 
     total_passed = sum(1 for r in all_results if r.passed)
     total_failed = total_tests - total_passed
+    total_cached = sum(1 for r in all_results if r.is_cached)
+    pass_rate = (total_passed / total_tests) * 100 if total_tests else 0.0
 
     parts = []
     if total_failed > 0:
@@ -181,13 +183,34 @@ def render_summary(
         parts.append(f"[bold green]{total_passed} passed[/bold green]")
 
     summary_line = f"{', '.join(parts)} in {elapsed_time:.2f}s"
+    if total_tests > 0:
+        summary_line += f" • [bold]{pass_rate:.0f}% pass rate[/bold]"
+    if total_cached > 0:
+        summary_line += f" • [dim]{total_cached} cached[/dim]"
+
     summary_text = Text.from_markup(summary_line)
 
     border_color = "red" if total_failed > 0 else "green"
 
+    renderables: List[RenderableType] = [summary_text]
+    if total_failed > 0:
+        failures = [r for r in all_results if not r.passed]
+        failures.sort(key=lambda r: (str(r.suite_path), r.test_case.id))
+
+        table = Table.grid(padding=(0, 2))
+        table.add_column(style="bold yellow", no_wrap=True)
+        table.add_column(style="bold red", no_wrap=True)
+        table.add_column(style="bold orange1")
+
+        for r in failures:
+            reason = _truncate_text(r.evaluation or r.error or "", max_lines=1)
+            table.add_row(str(r.suite_path), r.test_case.id, reason or "[dim]n/a[/dim]")
+
+        renderables.extend(["", table])
+
     console.print(
         Panel(
-            summary_text,
+            Group(*renderables),
             title="[bold]Test Summary[/bold]",
             title_align="left",
             box=box.HEAVY,
