@@ -201,9 +201,3 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-
-# prompttest cache
-.prompttest_cache/
-
-# Test reports
-.prompttest_reports/
