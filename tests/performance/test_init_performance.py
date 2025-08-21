@@ -8,6 +8,7 @@ import pytest
 from prompttest.cli import app
 
 
+@pytest.mark.performance
 @pytest.mark.parametrize(
     "size_bytes, threshold_seconds, label",
     [

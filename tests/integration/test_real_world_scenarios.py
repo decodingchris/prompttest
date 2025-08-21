@@ -1,15 +1,19 @@
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
+import pytest
+
 from prompttest import runner
-from prompttest.discovery import PROMPTS_DIR
 
 
-def write_prompt():
-    PROMPTS_DIR.mkdir(exist_ok=True)
-    (PROMPTS_DIR / "cs.txt").write_text(
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_scraped_from_wild_html_entities_and_unicode(
+    monkeypatch, in_tmp_project: Path, write_prompt_file
+):
+    write_prompt_file(
+        "cs",
         """
 ---[SYSTEM]---
 You are an expert support agent.
@@ -17,12 +21,7 @@ You are an expert support agent.
 Tier: {tier}
 Question: {q}
 """,
-        encoding="utf-8",
     )
-
-
-def test_scraped_from_wild_html_entities_and_unicode(monkeypatch, in_tmp_project: Path):
-    write_prompt()
     Path("prompttests").mkdir()
     Path("prompttests/test1.yml").write_text(
         """
@@ -52,12 +51,25 @@ tests:
     monkeypatch.setattr(llm_mod, "generate", fake_gen)
     monkeypatch.setattr(llm_mod, "evaluate", fake_eval)
 
-    code = asyncio.run(runner.run_all_tests())
+    code = await runner.run_all_tests()
     assert code == 0
 
 
-def test_generated_by_tool_almost_correct(monkeypatch, in_tmp_project: Path):
-    write_prompt()
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_generated_by_tool_almost_correct(
+    monkeypatch, in_tmp_project: Path, write_prompt_file
+):
+    write_prompt_file(
+        "cs",
+        """
+---[SYSTEM]---
+You are an expert support agent.
+---[USER]---
+Tier: {tier}
+Question: {q}
+""",
+    )
     Path("prompttests").mkdir()
     Path("prompttests/test2.yml").write_text(
         """
@@ -90,12 +102,25 @@ tests:
     monkeypatch.setattr(llm_mod, "generate", fake_gen)
     monkeypatch.setattr(llm_mod, "evaluate", fake_eval)
 
-    code = asyncio.run(runner.run_all_tests())
+    code = await runner.run_all_tests()
     assert code == 0
 
 
-def test_human_edited_broke_format(monkeypatch, in_tmp_project: Path):
-    write_prompt()
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_human_edited_broke_format(
+    monkeypatch, in_tmp_project: Path, write_prompt_file
+):
+    write_prompt_file(
+        "cs",
+        """
+---[SYSTEM]---
+You are an expert support agent.
+---[USER]---
+Tier: {tier}
+Question: {q}
+""",
+    )
     Path("prompttests").mkdir()
     Path("prompttests/test3.yml").write_text(
         """
@@ -124,12 +149,25 @@ tests:
     monkeypatch.setattr(llm_mod, "generate", fake_gen)
     monkeypatch.setattr(llm_mod, "evaluate", fake_eval)
 
-    code = asyncio.run(runner.run_all_tests())
+    code = await runner.run_all_tests()
     assert code == 1
 
 
-def test_legacy_system_old_format(monkeypatch, in_tmp_project: Path):
-    write_prompt()
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_legacy_system_old_format(
+    monkeypatch, in_tmp_project: Path, write_prompt_file
+):
+    write_prompt_file(
+        "cs",
+        """
+---[SYSTEM]---
+You are an expert support agent.
+---[USER]---
+Tier: {tier}
+Question: {q}
+""",
+    )
     Path("prompttests").mkdir()
     Path("prompttests/test4.yml").write_text(
         """
@@ -158,12 +196,25 @@ tests:
     monkeypatch.setattr(llm_mod, "generate", fake_gen)
     monkeypatch.setattr(llm_mod, "evaluate", fake_eval)
 
-    code = asyncio.run(runner.run_all_tests())
+    code = await runner.run_all_tests()
     assert code == 0
 
 
-def test_corrupted_in_transit_partial_data(monkeypatch, in_tmp_project: Path):
-    write_prompt()
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_corrupted_in_transit_partial_data(
+    monkeypatch, in_tmp_project: Path, write_prompt_file
+):
+    write_prompt_file(
+        "cs",
+        """
+---[SYSTEM]---
+You are an expert support agent.
+---[USER]---
+Tier: {tier}
+Question: {q}
+""",
+    )
     Path("prompttests").mkdir()
     Path("prompttests/test5.yml").write_text(
         """
@@ -192,5 +243,5 @@ tests:
     monkeypatch.setattr(llm_mod, "generate", fake_gen)
     monkeypatch.setattr(llm_mod, "evaluate", fake_eval)
 
-    code = asyncio.run(runner.run_all_tests())
+    code = await runner.run_all_tests()
     assert code == 1

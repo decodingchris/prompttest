@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
+
+import pytest
 
 from prompttest import runner
 from prompttest.reporting import REPORTS_DIR
 
 
-def test_full_pipeline_with_pass_and_fail_write_reports_and_summary(
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_full_pipeline_with_pass_and_fail_write_reports_and_summary(
     initialized_project: Path, mock_llm_selective, ensure_clean_cache_and_reports
 ):
     suite_path = Path("prompttests/demo.yml")
@@ -34,7 +37,7 @@ tests:
         encoding="utf-8",
     )
 
-    exit_code = asyncio.run(runner.run_all_tests())
+    exit_code = await runner.run_all_tests()
     assert exit_code == 1
 
     assert REPORTS_DIR.exists()
@@ -53,17 +56,21 @@ tests:
     assert "## Request (Prompt + Values)" in content
 
 
-def test_runner_handles_project_not_initialized_gracefully(
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_runner_handles_project_not_initialized_gracefully(
     in_tmp_project: Path, capsys
 ):
-    code = asyncio.run(runner.run_all_tests())
+    code = await runner.run_all_tests()
     captured = capsys.readouterr().out
     assert code == 1
     assert "Error: Directory 'prompttests' not found." in captured
     assert "prompttest init" in captured
 
 
-def test_runner_handles_llm_error_and_shows_failure_panel(
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_runner_handles_llm_error_and_shows_failure_panel(
     initialized_project: Path,
     ensure_clean_cache_and_reports,
     monkeypatch,
@@ -89,7 +96,7 @@ tests:
 
     monkeypatch.setattr(llm_mod, "generate", gen_err)
 
-    code = asyncio.run(runner.run_all_tests())
+    code = await runner.run_all_tests()
     out = capsys.readouterr().out
     assert code == 1
     assert "❌ FAIL: only" in out or "FAIL: only" in out

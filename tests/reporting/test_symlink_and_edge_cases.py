@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -69,3 +70,34 @@ def test_create_latest_symlink_replaces_file(in_tmp_project: Path):
 
     assert latest.exists()
     assert latest.is_symlink()
+
+
+def test_create_run_directory_and_latest_symlink(in_tmp_project: Path):
+    run1 = create_run_directory()
+    assert run1.exists() and run1.is_dir()
+    create_latest_symlink(run1, Console())
+    latest = REPORTS_DIR / "latest"
+    assert latest.exists()
+
+    # Ensure a different timestamp on the next run directory
+    run2 = create_run_directory()
+    create_latest_symlink(run2, Console())
+    assert latest.exists()
+
+
+def test_create_latest_symlink_fallback(monkeypatch, in_tmp_project: Path, capsys):
+    run_dir = create_run_directory()
+    calls = {"n": 0}
+
+    def fake_symlink(src, dst, target_is_directory=True):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            # First attempt should simulate environments without symlink support
+            raise AttributeError("no symlink")
+        # Second attempt should simulate OS-level failure
+        raise OSError("nope")
+
+    monkeypatch.setattr(os, "symlink", fake_symlink)
+    create_latest_symlink(run_dir, Console())
+    out = capsys.readouterr().out
+    assert "Warning:" in out

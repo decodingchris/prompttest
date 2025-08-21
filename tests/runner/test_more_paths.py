@@ -5,12 +5,6 @@ from pathlib import Path
 import pytest
 
 from prompttest import runner
-from prompttest.discovery import PROMPTS_DIR
-
-
-def _write_prompt(name: str = "cs"):
-    PROMPTS_DIR.mkdir(exist_ok=True)
-    (PROMPTS_DIR / f"{name}.txt").write_text("Hello {x}", encoding="utf-8")
 
 
 @pytest.mark.asyncio
@@ -32,9 +26,9 @@ async def test_runner_file_not_found_for_missing_prompt_not_init_branch(
 
 @pytest.mark.asyncio
 async def test_runner_test_id_globs_no_match_prints_no_tests_found(
-    monkeypatch, in_tmp_project: Path, capsys
+    monkeypatch, in_tmp_project: Path, capsys, write_prompt_file
 ):
-    _write_prompt()
+    write_prompt_file("cs", "Hello {x}")
     Path("prompttests").mkdir()
     Path("prompttests/one.yml").write_text(
         "config:\n  prompt: cs\n  generation_model: g\n  evaluation_model: e\n"
@@ -60,8 +54,10 @@ async def test_runner_test_id_globs_no_match_prints_no_tests_found(
 
 
 @pytest.mark.asyncio
-async def test_runner_unlimited_concurrency_path(monkeypatch, in_tmp_project: Path):
-    _write_prompt()
+async def test_runner_unlimited_concurrency_path(
+    monkeypatch, in_tmp_project: Path, write_prompt_file
+):
+    write_prompt_file("cs", "Hello {x}")
     Path("prompttests").mkdir()
     Path("prompttests/multi.yml").write_text(
         "config:\n  prompt: cs\n  generation_model: g\n  evaluation_model: e\n"

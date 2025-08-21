@@ -8,14 +8,11 @@ import prompttest.discovery as discovery
 from prompttest.discovery import discover_and_prepare_suites
 
 
-def _write_min_prompt(tmp: Path, name: str = "cs") -> None:
-    (tmp / "prompts").mkdir(exist_ok=True)
-    (tmp / "prompts" / f"{name}.txt").write_text("Body", encoding="utf-8")
-
-
-def test_duplicate_yaml_anchors_within_single_config_doc_raises(in_tmp_project: Path):
+def test_duplicate_yaml_anchors_within_single_config_doc_raises(
+    in_tmp_project: Path, write_prompt_file
+):
     discovery.clear_caches()
-    _write_min_prompt(in_tmp_project, "cs")
+    write_prompt_file("cs", "Body")
 
     pt = in_tmp_project / "prompttests"
     pt.mkdir()
@@ -35,9 +32,11 @@ def test_duplicate_yaml_anchors_within_single_config_doc_raises(in_tmp_project: 
         discover_and_prepare_suites()
 
 
-def test_multi_document_config_is_not_supported_parsing_error(in_tmp_project: Path):
+def test_multi_document_config_is_not_supported_parsing_error(
+    in_tmp_project: Path, write_prompt_file
+):
     discovery.clear_caches()
-    _write_min_prompt(in_tmp_project, "cs")
+    write_prompt_file("cs", "Body")
 
     pt = in_tmp_project / "prompttests"
     pt.mkdir()

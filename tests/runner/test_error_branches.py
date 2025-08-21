@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
+
+import pytest
 
 
 from prompttest import llm, runner
@@ -23,7 +24,8 @@ def _write_suite(tmp: Path, name="suite.yml") -> Path:
     return p
 
 
-def test_runner_generate_llmerror(monkeypatch, in_tmp_project: Path, capsys):
+@pytest.mark.asyncio
+async def test_runner_generate_llmerror(monkeypatch, in_tmp_project: Path, capsys):
     _write_suite(in_tmp_project)
 
     class E(llm.LLMError):
@@ -39,13 +41,14 @@ def test_runner_generate_llmerror(monkeypatch, in_tmp_project: Path, capsys):
 
     monkeypatch.setattr(llm, "evaluate", ok_eval)
 
-    code = asyncio.run(runner.run_all_tests())
+    code = await runner.run_all_tests()
     out = capsys.readouterr().out
     assert code == 1
     assert "API Error" in out or "Error:" in out
 
 
-def test_runner_evaluate_llmerror(monkeypatch, in_tmp_project: Path, capsys):
+@pytest.mark.asyncio
+async def test_runner_evaluate_llmerror(monkeypatch, in_tmp_project: Path, capsys):
     _write_suite(in_tmp_project)
 
     async def ok_generate(*a, **k):
@@ -61,7 +64,7 @@ def test_runner_evaluate_llmerror(monkeypatch, in_tmp_project: Path, capsys):
 
     monkeypatch.setattr(llm, "evaluate", bad_evaluate)
 
-    code = asyncio.run(runner.run_all_tests())
+    code = await runner.run_all_tests()
     out = capsys.readouterr().out
     assert code == 1
     assert "API Error" in out or "Error:" in out

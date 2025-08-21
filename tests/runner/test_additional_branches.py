@@ -6,20 +6,14 @@ import pytest
 
 from prompttest import llm as llm_mod
 from prompttest import runner
-from prompttest.discovery import PROMPTS_DIR
-
-
-def _mk_prompt_and_dir():
-    PROMPTS_DIR.mkdir(exist_ok=True)
-    (PROMPTS_DIR / "cs.txt").write_text("Hello {name}", encoding="utf-8")
-    Path("prompttests").mkdir()
 
 
 @pytest.mark.asyncio
 async def test_runner_error_missing_generation_model(
-    monkeypatch, in_tmp_project: Path, capsys
+    monkeypatch, in_tmp_project: Path, capsys, write_prompt_file
 ):
-    _mk_prompt_and_dir()
+    write_prompt_file("cs", "Hello {name}")
+    Path("prompttests").mkdir()
     Path("prompttests/s1.yml").write_text(
         "config:\n  prompt: cs\n  evaluation_model: 'judge'\n"
         "tests:\n  - id: t\n    inputs: {name: 'A'}\n    criteria: 'c'\n",
@@ -35,9 +29,10 @@ async def test_runner_error_missing_generation_model(
 
 @pytest.mark.asyncio
 async def test_runner_error_missing_evaluation_model(
-    monkeypatch, in_tmp_project: Path, capsys
+    monkeypatch, in_tmp_project: Path, capsys, write_prompt_file
 ):
-    _mk_prompt_and_dir()
+    write_prompt_file("cs", "Hello {name}")
+    Path("prompttests").mkdir()
     Path("prompttests/s2.yml").write_text(
         "config:\n  prompt: cs\n  generation_model: 'gen'\n"
         "tests:\n  - id: t\n    inputs: {name: 'B'}\n    criteria: 'c'\n",
@@ -57,8 +52,11 @@ async def test_runner_error_missing_evaluation_model(
 
 
 @pytest.mark.asyncio
-async def test_runner_filters_by_test_file_globs(monkeypatch, in_tmp_project: Path):
-    _mk_prompt_and_dir()
+async def test_runner_filters_by_test_file_globs(
+    monkeypatch, in_tmp_project: Path, write_prompt_file
+):
+    write_prompt_file("cs", "Hello {name}")
+    Path("prompttests").mkdir()
     Path("prompttests/a.yml").write_text(
         "config:\n  prompt: cs\n  generation_model: g\n  evaluation_model: e\n"
         "tests:\n  - id: ta\n    inputs: {name: 'A'}\n    criteria: 'ok'\n",
@@ -97,9 +95,10 @@ async def test_runner_filters_by_test_file_globs(monkeypatch, in_tmp_project: Pa
 
 @pytest.mark.asyncio
 async def test_runner_filters_by_test_id_globs(
-    monkeypatch, in_tmp_project: Path, capsys
+    monkeypatch, in_tmp_project: Path, capsys, write_prompt_file
 ):
-    _mk_prompt_and_dir()
+    write_prompt_file("cs", "Hello {name}")
+    Path("prompttests").mkdir()
     Path("prompttests/ids.yml").write_text(
         "config:\n  prompt: cs\n  generation_model: g\n  evaluation_model: e\n"
         "tests:\n"
@@ -130,9 +129,10 @@ async def test_runner_filters_by_test_id_globs(
 
 @pytest.mark.asyncio
 async def test_runner_bounded_concurrency_path_executes(
-    monkeypatch, in_tmp_project: Path
+    monkeypatch, in_tmp_project: Path, write_prompt_file
 ):
-    _mk_prompt_and_dir()
+    write_prompt_file("cs", "Hello {name}")
+    Path("prompttests").mkdir()
     Path("prompttests/conc.yml").write_text(
         "config:\n  prompt: cs\n  generation_model: g\n  evaluation_model: e\n"
         "tests:\n  - id: t1\n    inputs: {}\n    criteria: 'ok'\n"
