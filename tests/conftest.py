@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 from typing import Callable, Dict, Iterator, Tuple
@@ -147,18 +148,32 @@ def prime_generate_cache(
 @pytest.fixture()
 def prime_evaluate_cache(
     cache_primed: None,
-) -> Callable[[str, str, float, str, str], None]:
-    # Helper to put an entry into the evaluate() cache with the exact response used
+) -> Callable[[str, str, float, str, Dict[str, object]], None]:
+    # Helper to put an entry into the structured evaluate() cache
     def _prime(
-        criteria: str, model: str, temperature: float, response: str, content: str
+        criteria: str,
+        model: str,
+        temperature: float,
+        response: str,
+        verdict_json: Dict[str, object],
     ) -> None:
-        eval_prompt = llm._EVALUATION_PROMPT_TEMPLATE.format(
-            criteria=criteria, response=response
+        prompt = (
+            "Criteria:\n"
+            f"{criteria}\n\n"
+            "Response:\n"
+            f"{response}\n\n"
+            "Decide if the response meets the criteria."
         )
         key = _get_cache_key(
-            {"eval_prompt": eval_prompt, "model": model, "temperature": temperature}
+            {
+                "v": 2,
+                "mode": "structured",
+                "eval_prompt": prompt,
+                "model": model,
+                "temperature": temperature,
+            }
         )
-        _write_cache(key, content)
+        _write_cache(key, json.dumps(verdict_json))
 
     return _prime
 

@@ -6,10 +6,11 @@ import os
 import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, cast
 
 import openai
 from dotenv import load_dotenv
+from pydantic import BaseModel, ValidationError
 
 CACHE_DIR = Path(".prompttest_cache")
 
@@ -21,20 +22,26 @@ class LLMError(Exception):
 
 
 _EVALUATION_PROMPT_TEMPLATE = """
-You are an expert evaluator. Your task is to determine if the following AI-generated response strictly adheres to the given criteria.
+You are an expert evaluator. Determine if the response adheres to the criteria.
 
-**Criteria:**
+Criteria:
 {criteria}
 
-**Response to Evaluate:**
+Response:
 {response}
 
-Analyze the response against the criteria.
-Your final verdict must be on the last line, in the format:
-`EVALUATION: (PASS|FAIL) - <brief, one-sentence justification>`
-For example: `EVALUATION: PASS - The response correctly identified the user's premium status.`
-Another example: `EVALUATION: FAIL - The response was defensive and did not adopt an empathetic tone.`
+Instructions:
+- Provide brief analysis if needed.
+- Your final verdict must be the LAST line, in this exact format (no quotes, no backticks, no code blocks):
+EVALUATION: PASS - <brief, one-sentence justification>
+or
+EVALUATION: FAIL - <brief, one-sentence justification>
 """.strip()
+
+
+class _StructuredVerdict(BaseModel):
+    passed: bool | None = None
+    reason: str
 
 
 @lru_cache(maxsize=1)
@@ -79,10 +86,6 @@ async def _chat_completions_create(
     messages: Any,
     temperature: float,
 ):
-    """
-    Centralized wrapper for client.chat.completions.create with consistent error translation.
-    'messages' is typed as Any to satisfy the OpenAI SDK's broad union of message param types.
-    """
     client = get_client()
     try:
         return await client.chat.completions.create(
@@ -111,6 +114,117 @@ async def _chat_completions_create(
         raise LLMError("The request to the API timed out. Please try again.") from e
     except Exception as e:
         raise LLMError(f"Unexpected error while calling the API: {e}") from e
+
+
+_STRUCTURED_HINT = (
+    "Return only a JSON object with fields:\n"
+    "  passed: boolean\n"
+    "  reason: short string justification\n"
+    "No extra text."
+)
+
+
+async def _try_structured_eval(
+    *,
+    criteria: str,
+    response: str,
+    model: str,
+    temperature: float,
+) -> tuple[bool | None, str | None, bool]:
+    prompt = (
+        "Criteria:\n"
+        f"{criteria}\n\n"
+        "Response:\n"
+        f"{response}\n\n"
+        "Decide if the response meets the criteria."
+    )
+
+    cache_key = _get_cache_key(
+        {
+            "v": 2,
+            "mode": "structured",
+            "eval_prompt": prompt,
+            "model": model,
+            "temperature": temperature,
+        }
+    )
+    cached = _read_cache(cache_key)
+    if cached:
+        try:
+            v_cached = _StructuredVerdict.model_validate_json(cached)
+            return v_cached.passed, v_cached.reason.strip(), True
+        except Exception:
+            pass
+
+    client = get_client()
+
+    # 1) Native Pydantic parsing
+    try:
+        parsed_resp = await client.chat.completions.parse(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            response_format=_StructuredVerdict,
+            temperature=temperature,
+        )
+        msg = parsed_resp.choices[0].message
+        v_parsed = cast(Optional[_StructuredVerdict], getattr(msg, "parsed", None))
+        if v_parsed is not None:
+            _write_cache(cache_key, v_parsed.model_dump_json())
+            return v_parsed.passed, v_parsed.reason.strip(), False
+    except Exception:
+        pass
+
+    # 2) JSON Schema constrained outputs
+    try:
+        rf = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "_StructuredVerdict",
+                "schema": _StructuredVerdict.model_json_schema(),
+                "strict": True,
+            },
+        }
+        schema_resp = await client.chat.completions.create(
+            model=model,
+            messages=cast(Any, [{"role": "user", "content": prompt}]),
+            response_format=cast(Any, rf),
+            temperature=0.0,
+        )
+        content = (schema_resp.choices[0].message.content or "").strip()
+        try:
+            v_schema = _StructuredVerdict.model_validate_json(content)
+        except ValidationError:
+            v_schema = _StructuredVerdict.model_validate(json.loads(content))
+        _write_cache(cache_key, v_schema.model_dump_json())
+        return v_schema.passed, v_schema.reason.strip(), False
+    except Exception:
+        pass
+
+    # 3) JSON mode
+    try:
+        json_resp = await client.chat.completions.create(
+            model=model,
+            messages=cast(
+                Any,
+                [
+                    {"role": "system", "content": _STRUCTURED_HINT},
+                    {"role": "user", "content": prompt},
+                ],
+            ),
+            response_format=cast(Any, {"type": "json_object"}),
+            temperature=0.0,
+        )
+        content = (json_resp.choices[0].message.content or "").strip()
+        try:
+            v_json = _StructuredVerdict.model_validate_json(content)
+        except ValidationError:
+            v_json = _StructuredVerdict.model_validate(json.loads(content))
+        _write_cache(cache_key, v_json.model_dump_json())
+        return v_json.passed, v_json.reason.strip(), False
+    except Exception:
+        pass
+
+    return None, None, False
 
 
 async def generate(prompt: str, model: str, temperature: float) -> Tuple[str, bool]:
@@ -144,8 +258,13 @@ def _parse_evaluation(text: str) -> Tuple[bool, str]:
     if not s:
         return False, "Evaluation failed: LLM returned an empty response."
 
-    for line in reversed(s.splitlines()):
-        m = re.match(r"\s*EVALUATION:\s*(PASS|FAIL)\s*-\s*(.*)$", line, flags=re.I)
+    lines = [ln.strip() for ln in s.splitlines() if ln.strip()]
+    lines = [ln for ln in lines if not ln.startswith("```") and not ln.endswith("```")]
+
+    for line in reversed(lines):
+        if line.startswith("`") and line.endswith("`") and len(line) >= 2:
+            line = line[1:-1].strip()
+        m = re.match(r"(?i)^\s*EVALUATION:\s*(PASS|FAIL)\s*-\s*(.+)$", line)
         if m:
             kind, reason = m.groups()
             return (kind.upper() == "PASS"), reason.strip()
@@ -155,11 +274,23 @@ def _parse_evaluation(text: str) -> Tuple[bool, str]:
 async def evaluate(
     response: str, criteria: str, model: str, temperature: float
 ) -> Tuple[bool, str, bool]:
+    s_passed, s_reason, s_cached = await _try_structured_eval(
+        criteria=criteria, response=response, model=model, temperature=temperature
+    )
+    if s_passed is not None and s_reason is not None:
+        return bool(s_passed), s_reason, s_cached
+
     eval_prompt = _EVALUATION_PROMPT_TEMPLATE.format(
         criteria=criteria, response=response
     )
     cache_key = _get_cache_key(
-        {"eval_prompt": eval_prompt, "model": model, "temperature": temperature}
+        {
+            "v": 2,
+            "mode": "text",
+            "eval_prompt": eval_prompt,
+            "model": model,
+            "temperature": temperature,
+        }
     )
     cached = _read_cache(cache_key)
     if cached:

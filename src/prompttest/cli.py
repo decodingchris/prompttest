@@ -6,7 +6,12 @@ import typer
 
 from . import discovery, runner, ui
 
-app = typer.Typer(help="An automated testing framework for LLMs.")
+
+app = typer.Typer(
+    help="An automated testing framework for LLMs.",
+    invoke_without_command=True,
+    no_args_is_help=False,
+)
 
 
 def _execute_run(
@@ -16,13 +21,6 @@ def _execute_run(
     test_id: List[str] | None,
     max_concurrency: int | None,
 ) -> int:
-    """
-    Shared path for running tests from both the 'run' command and the default callback.
-    Preserves current behavior:
-    - If no filters/max_concurrency are provided, call runner.run_all_tests() with no kwargs
-      to keep tests expecting the exact call signature passing.
-    - Otherwise, forward computed kwargs.
-    """
     pos_file_globs, pos_id_globs = _classify_patterns(patterns or [])
     all_file_globs = (test_file or []) + pos_file_globs
     all_id_globs = (test_id or []) + pos_id_globs
@@ -40,10 +38,6 @@ def _execute_run(
 
 @app.command()
 def init():
-    """
-    Initializes prompttest in the current directory with an example.
-    This command is idempotent and non-destructive.
-    """
     ui.render_init_header()
 
     gitignore_path = Path(".gitignore")
@@ -166,10 +160,6 @@ def init():
 
 
 def _classify_patterns(patterns: List[str]) -> Tuple[List[str], List[str]]:
-    """
-    Split positional patterns into file globs (under prompttests/) and test-id globs.
-    Supports bare names (without .yml/.yaml) and subpaths.
-    """
     id_globs: list[str] = []
 
     pt_dir = discovery.PROMPTTESTS_DIR
@@ -254,10 +244,6 @@ def run_command(
         help="Cap concurrent test cases (default: 8). Use 0 for unlimited.",
     ),
 ):
-    """
-    Discovers and runs tests in the `prompttests/` directory.
-    Positional patterns are a friendly shorthand for --test-file and --test-id.
-    """
     exit_code = _execute_run(
         patterns=patterns,
         test_file=test_file,
@@ -268,7 +254,9 @@ def run_command(
         raise typer.Exit(code=exit_code)
 
 
-@app.callback(invoke_without_command=True)
+@app.callback(
+    invoke_without_command=True,
+)
 def main(
     ctx: typer.Context,
     max_concurrency: int | None = typer.Option(
@@ -278,15 +266,9 @@ def main(
         help="Cap concurrent test cases (default: 8). Use 0 for unlimited.",
     ),
 ):
-    """
-    If no subcommand is provided, run the `run` command.
-    We forward any leftover CLI args (ctx.args) as positional patterns to `run`.
-    This avoids defining a positional Argument on the callback, which would
-    otherwise swallow subcommands like `init`.
-    """
     if ctx.invoked_subcommand is None:
         exit_code = _execute_run(
-            patterns=list(ctx.args),
+            patterns=None,
             test_file=None,
             test_id=None,
             max_concurrency=max_concurrency,

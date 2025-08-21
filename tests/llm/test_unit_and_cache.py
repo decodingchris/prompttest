@@ -58,7 +58,7 @@ async def test_evaluate_uses_cache_and_parses(
     temp = 0.0
     response = "ignored"
     prime_evaluate_cache(
-        criteria, model, temp, response, "foo\nEVALUATION: PASS - Looks good"
+        criteria, model, temp, response, {"passed": True, "reason": "Looks good"}
     )
     llm.get_client.cache_clear()
 

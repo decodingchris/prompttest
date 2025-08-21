@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -58,3 +59,9 @@ def test_create_latest_symlink_existing_symlink_unlink_failure(
     out = capsys.readouterr().out
     assert "Warning:" in out
     assert "Could not remove existing symlink 'latest'." in out
+
+
+def test_sanitize_for_filename_when_altsep_is_none(monkeypatch):
+    monkeypatch.setattr(os, "altsep", None, raising=False)
+    out = reporting._sanitize_for_filename("a/b\\c:d*e|f?g")
+    assert out == "a_b_c_d_e_f_g"

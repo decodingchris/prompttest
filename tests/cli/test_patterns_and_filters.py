@@ -76,7 +76,7 @@ def test_run_command_forwards_options(
     assert captured["max_concurrency"] == 1
 
 
-def test_main_callback_forwards_positional_patterns(
+def test_run_command_forwards_positional_patterns(
     monkeypatch, runner: CliRunner, in_tmp_project: Path
 ):
     captured: Dict[str, Any] = {}
