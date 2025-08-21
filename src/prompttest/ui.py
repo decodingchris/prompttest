@@ -297,9 +297,7 @@ def render_init_next_steps() -> None:
         )
     )
     print()
-    print(
-        "[bold]3. Run [medium_purple]prompttest[/medium_purple] to see your example tests run![/bold]"
-    )
+    print("[bold]3. Run [blue]prompttest[/blue] to see your example tests run![/bold]")
     print()
     print(
         "   [dim]The examples are configured to be run for free (with a free model).[/dim]"
