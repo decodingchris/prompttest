@@ -204,9 +204,11 @@ def render_summary(
         table.add_column(style="bold red", no_wrap=True)
         table.add_column(style="bold orange1")
 
-        for r in failures:
+        for idx, r in enumerate(failures):
             reason = _truncate_text(r.evaluation or r.error or "", max_lines=1)
             table.add_row(str(r.suite_path), r.test_case.id, reason or "[dim]n/a[/dim]")
+            if idx < len(failures) - 1:
+                table.add_row("", "", "")
 
         renderables.extend(["", table])
 
@@ -291,11 +293,13 @@ def render_init_next_steps() -> None:
             border_style="blue",
             expand=False,
             padding=(1, 2),
-            box=box.ROUNDED,
+            box=box.HEAVY,
         )
     )
     print()
-    print("[bold]3. Run `prompttest` to see your example tests run![/bold]")
+    print(
+        "[bold]3. Run [medium_purple]prompttest[/medium_purple] to see your example tests run![/bold]"
+    )
     print()
     print(
         "   [dim]The examples are configured to be run for free (with a free model).[/dim]"

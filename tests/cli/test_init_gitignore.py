@@ -39,7 +39,7 @@ def test_init_creates_files_with_exact_contents_and_summary(
     assert ".env" in out and "DO NOT COMMIT" in out
     assert ".gitignore" in out and "(created)" in out
     assert "Next steps:" in out
-    assert "Run `prompttest` to see your example tests run!" in out
+    assert "Run prompttest to see your example tests run!" in out
 
 
 def test_init_is_idempotent_and_skips_existing_files(

@@ -36,7 +36,7 @@ def _execute_run(
     return asyncio.run(runner.run_all_tests())
 
 
-@app.command()
+@app.command(help="Setup prompttest in the current directory.")
 def init():
     ui.render_init_header()
 
@@ -221,7 +221,7 @@ def _classify_patterns(patterns: List[str]) -> Tuple[List[str], List[str]]:
     return sorted(file_patterns), id_globs
 
 
-@app.command(name="run")
+@app.command(name="run", help="Discover and run tests. Supports file and id filters.")
 def run_command(
     patterns: List[str] | None = typer.Argument(
         None,
@@ -242,6 +242,7 @@ def run_command(
         "--max-concurrency",
         min=0,
         help="Cap concurrent test cases (default: 8). Use 0 for unlimited.",
+        show_default=False,
     ),
 ):
     exit_code = _execute_run(
@@ -264,6 +265,7 @@ def main(
         "--max-concurrency",
         min=0,
         help="Cap concurrent test cases (default: 8). Use 0 for unlimited.",
+        show_default=False,
     ),
 ):
     if ctx.invoked_subcommand is None:
