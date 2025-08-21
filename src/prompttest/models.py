@@ -1,4 +1,3 @@
-# src/prompttest/models.py
 from __future__ import annotations
 
 from pathlib import Path
@@ -39,3 +38,4 @@ class TestResult(BaseModel):
     evaluation: str
     error: Optional[str] = None
     is_cached: bool = False
+    error_kind: Optional[str] = None

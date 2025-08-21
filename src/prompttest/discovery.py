@@ -1,4 +1,3 @@
-# src/prompttest/discovery.py
 from __future__ import annotations
 
 import re
@@ -69,6 +68,15 @@ def _find_anchors(yaml_text: str) -> set[str]:
     return set(re.findall(r"&([A-Za-z0-9_-]+)", yaml_text))
 
 
+def _find_anchor_dupes_in_text(yaml_text: str) -> list[str]:
+    """Return anchor names that appear more than once within a single YAML text."""
+    names = re.findall(r"&([A-Za-z0-9_-]+)", yaml_text)
+    counts: dict[str, int] = {}
+    for n in names:
+        counts[n] = counts.get(n, 0) + 1
+    return [n for n, c in counts.items() if c > 1]
+
+
 def discover_and_prepare_suites() -> List[TestSuite]:
     if not PROMPTTESTS_DIR.is_dir():
         raise FileNotFoundError(f"Directory '{PROMPTTESTS_DIR}' not found.")
@@ -92,6 +100,17 @@ def discover_and_prepare_suites() -> List[TestSuite]:
 
         if config_paths:
             texts = [_read_text_cached(p) for p in config_paths]
+
+            # Detect duplicate anchors within any single config file
+            for p, txt in zip(config_paths, texts):
+                local_dupes = _find_anchor_dupes_in_text(txt)
+                if local_dupes:
+                    dlist = ", ".join(sorted(set(local_dupes)))
+                    raise ValueError(
+                        f"Duplicate YAML anchor names found within {p}: {dlist}. "
+                        "Anchors must be unique within each config file."
+                    )
+
             seen: dict[str, Path] = {}
             dupes: List[tuple[str, Path, Path]] = []
             for p, txt in zip(config_paths, texts):

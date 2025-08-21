@@ -1,4 +1,3 @@
-# src/prompttest/ui.py
 from __future__ import annotations
 
 import sys
@@ -46,9 +45,7 @@ def _create_failure_panels(results: List[TestResult], run_dir: Path) -> List[Pan
         content: Any
         if result.error:
             msg = result.error or ""
-            is_api_error = (
-                ("API" in msg) or ("status code" in msg) or ("network" in msg)
-            )
+            is_api_error = result.error_kind == "llm"
             label = "API Error" if is_api_error else "Error"
             text = f"[bold red]{label}:[/bold red] {msg}"
             if is_api_error:
@@ -245,9 +242,7 @@ def render_init_report(
         path = file_spec["path"]
 
         display_path = (
-            f"{path.parent.name}/{path.name}"
-            if not path.name.startswith(".")
-            else path.name
+            str(path).replace("\\", "/") if not path.name.startswith(".") else path.name
         )
         if warning:
             full_description = f"{description} [red]{warning}[/red]"

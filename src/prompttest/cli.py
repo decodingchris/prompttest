@@ -1,4 +1,3 @@
-# src/prompttest/cli.py
 import asyncio
 from pathlib import Path
 from typing import List, Tuple
@@ -251,8 +250,8 @@ def run_command(
     max_concurrency: int | None = typer.Option(
         None,
         "--max-concurrency",
-        min=1,
-        help="Cap the number of test cases executed concurrently.",
+        min=0,
+        help="Cap concurrent test cases (default: 8). Use 0 for unlimited.",
     ),
 ):
     """
@@ -270,7 +269,15 @@ def run_command(
 
 
 @app.callback(invoke_without_command=True)
-def main(ctx: typer.Context):
+def main(
+    ctx: typer.Context,
+    max_concurrency: int | None = typer.Option(
+        None,
+        "--max-concurrency",
+        min=0,
+        help="Cap concurrent test cases (default: 8). Use 0 for unlimited.",
+    ),
+):
     """
     If no subcommand is provided, run the `run` command.
     We forward any leftover CLI args (ctx.args) as positional patterns to `run`.
@@ -282,7 +289,7 @@ def main(ctx: typer.Context):
             patterns=list(ctx.args),
             test_file=None,
             test_id=None,
-            max_concurrency=None,
+            max_concurrency=max_concurrency,
         )
 
         if exit_code > 0:

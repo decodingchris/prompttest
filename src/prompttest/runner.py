@@ -1,4 +1,3 @@
-# src/prompttest/runner.py
 from __future__ import annotations
 
 import asyncio
@@ -24,6 +23,7 @@ from .llm import LLMError
 from .models import TestCase, TestResult, TestSuite
 
 _PLACEHOLDER_RE = re.compile(r"\{([A-Za-z0-9_]+)\}")
+DEFAULT_MAX_CONCURRENCY = 8
 
 
 def _format_prompt(template: str, inputs: Dict[str, Any]) -> str:
@@ -83,6 +83,7 @@ async def _run_test_case(
             response="",
             evaluation="",
             error=str(e),
+            error_kind="llm",
         )
     except Exception as e:
         progress.update(task_id, advance=1)
@@ -168,10 +169,13 @@ async def run_all_tests(
 
     console.print()
 
-    # Optional concurrency cap (defaults to unlimited)
-    sem: Optional[asyncio.Semaphore] = (
-        asyncio.Semaphore(max_concurrency) if max_concurrency else None
-    )
+    if max_concurrency == 0:
+        limit = None
+    else:
+        limit = (
+            max_concurrency if max_concurrency is not None else DEFAULT_MAX_CONCURRENCY
+        )
+    sem: Optional[asyncio.Semaphore] = asyncio.Semaphore(limit) if limit else None
 
     async def _maybe_bounded(coro):
         if sem is None:
@@ -180,16 +184,13 @@ async def run_all_tests(
             return await coro
 
     with Live(progress, console=console, vertical_overflow="visible", transient=True):
-        all_results: List[TestResult] = []
         overall_task = progress.add_task("[bold]Running tests", total=total_tests)
-
-        for suite in suites:
-            tasks = [
-                _maybe_bounded(_run_test_case(suite, tc, progress, overall_task))
-                for tc in suite.tests
-            ]
-            suite_results = await asyncio.gather(*tasks)
-            all_results.extend(suite_results)
+        tasks = [
+            _maybe_bounded(_run_test_case(suite, tc, progress, overall_task))
+            for suite in suites
+            for tc in suite.tests
+        ]
+        all_results: List[TestResult] = await asyncio.gather(*tasks)
 
     for result in all_results:
         reporting.write_report_file(result, run_dir)

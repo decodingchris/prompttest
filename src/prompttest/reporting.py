@@ -1,7 +1,7 @@
-# src/prompttest/reporting.py
 from __future__ import annotations
 
 import os
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -63,6 +63,15 @@ def create_latest_symlink(run_dir: Path, console: Console) -> None:
                 f"[yellow]Warning:[/yellow] Could not create 'latest' symlink to {run_dir}. "
                 "This might be due to Windows permissions."
             )
+            try:
+                if latest_symlink.exists():
+                    if latest_symlink.is_dir() and not latest_symlink.is_symlink():
+                        shutil.rmtree(latest_symlink)
+                    else:
+                        latest_symlink.unlink()
+                shutil.copytree(run_dir, latest_symlink)
+            except Exception:
+                pass
 
 
 def _md_rel_path(target: Path, start: Path) -> str:
