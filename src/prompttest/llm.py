@@ -127,8 +127,6 @@ async def generate(prompt: str, model: str, temperature: float) -> Tuple[str, bo
         and chat_completion.choices[0].message.content is not None
     ):
         content = chat_completion.choices[0].message.content
-    else:
-        pass
 
     _write_cache(cache_key, content)
     return content, False
@@ -174,8 +172,6 @@ async def evaluate(
         and chat_completion.choices[0].message.content is not None
     ):
         content = chat_completion.choices[0].message.content
-    else:
-        pass
 
     _write_cache(cache_key, content)
     passed, reason = _parse_evaluation(content)

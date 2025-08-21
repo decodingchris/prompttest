@@ -29,16 +29,29 @@ def _deep_merge(source: dict, destination: dict) -> dict:
 
 
 def _get_config_file_paths(start_path: Path) -> List[Path]:
-    """Finds all prompttest.yml files from the start_path up to the root."""
-    paths_to_check = []
-    current_dir = start_path.parent
-    stop_dir = PROMPTTESTS_DIR.resolve().parent
+    """Finds all prompttest.yml/yaml files from the start_path up to the root."""
+    paths_to_check: List[Path] = []
+    current_dir = start_path.parent.resolve()
+    prompttests_root = PROMPTTESTS_DIR.resolve()
+    top_dir = prompttests_root.parent
 
-    while current_dir != stop_dir and PROMPTTESTS_DIR.name in str(current_dir):
-        config_path = current_dir / "prompttest.yml"
-        if config_path.is_file():
-            paths_to_check.append(config_path)
+    while True:
+        if not (
+            current_dir == prompttests_root or prompttests_root in current_dir.parents
+        ):
+            break
+        if current_dir == top_dir:
+            break
+
+        for cfg_name in ("prompttest.yml", "prompttest.yaml"):
+            config_path = current_dir / cfg_name
+            if config_path.is_file():
+                paths_to_check.append(config_path)
+
+        if current_dir == current_dir.parent:
+            break
         current_dir = current_dir.parent
+
     return list(reversed(paths_to_check))
 
 
@@ -53,7 +66,7 @@ def _load_yaml_file(p: Path) -> Dict[str, Any]:
 
 
 def _find_anchors(yaml_text: str) -> set[str]:
-    return set(re.findall(r"&([A-Za-z0-9_]+)", yaml_text))
+    return set(re.findall(r"&([A-Za-z0-9_-]+)", yaml_text))
 
 
 def discover_and_prepare_suites() -> List[TestSuite]:
@@ -68,7 +81,7 @@ def discover_and_prepare_suites() -> List[TestSuite]:
     suite_files.sort()
 
     for suite_file in suite_files:
-        if suite_file.name == "prompttest.yml":
+        if suite_file.name in ("prompttest.yml", "prompttest.yaml"):
             continue
 
         config_paths = _get_config_file_paths(suite_file)
@@ -76,23 +89,6 @@ def discover_and_prepare_suites() -> List[TestSuite]:
         def _indent_block(s: str, spaces: int = 2) -> str:
             pad = " " * spaces
             return "\n".join((pad + line if line else line) for line in s.splitlines())
-
-        # We prepend a synthetic top-level mapping "__anchors__" that contains the raw
-        # contents of each prompttest.yml from the root down to the suite's directory.
-        #
-        # Why is this safe?
-        # - YAML anchors (&name) are scoped to the document and can be defined anywhere
-        #   earlier in the document than their use. By prepending these files (in order),
-        #   any anchors defined there are available to be referenced by the suite file.
-        # - Keys within the "__anchors__" mapping (e.g., "config", "reusable") are not
-        #   used semantically; only the side effect of defining anchors/aliases matters.
-        #   PyYAML's safe_load tolerates duplicate keys in a mapping (last one wins).
-        # - The actual configuration merge for "config" happens separately below by
-        #   loading each config file and deep-merging the "config" blocks. That means
-        #   potential duplicate keys inside "__anchors__" do not affect the merged
-        #   configuration we apply to the suite.
-        # - We explicitly check for duplicate anchor NAMES across files and raise a
-        #   helpful error if they collide (see duplicate detection above).
 
         if config_paths:
             texts = [_read_text_cached(p) for p in config_paths]

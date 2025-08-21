@@ -45,12 +45,18 @@ def _create_failure_panels(results: List[TestResult], run_dir: Path) -> List[Pan
         failure_title = f"[bold red]❌ {result.test_case.id}[/bold red]"
         content: Any
         if result.error:
-            error_text = Text.from_markup(
-                f"[bold red]API Error:[/bold red] {result.error}\n\n"
-                "[dim]Tip: This is often a temporary issue with the model provider. "
-                "Try running the test again in a few moments.[/dim]"
+            msg = result.error or ""
+            is_api_error = (
+                ("API" in msg) or ("status code" in msg) or ("network" in msg)
             )
-            content = error_text
+            label = "API Error" if is_api_error else "Error"
+            text = f"[bold red]{label}:[/bold red] {msg}"
+            if is_api_error:
+                text += (
+                    "\n\n[dim]Tip: This is often a temporary issue with the model provider. "
+                    "Try running the test again in a few moments.[/dim]"
+                )
+            content = Text.from_markup(text)
         else:
             suite_name = result.suite_path.stem
             test_id = result.test_case.id
@@ -244,7 +250,7 @@ def render_init_report(
             else path.name
         )
         if warning:
-            full_description = f"{description}[red]{warning}[/red]"
+            full_description = f"{description} [red]{warning}[/red]"
             print(
                 f"  - [bold]{display_path:<30}[/bold] {full_description:<56} {status}"
             )
