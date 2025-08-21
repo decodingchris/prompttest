@@ -1,4 +1,3 @@
-# src/prompttest/llm.py
 from __future__ import annotations
 
 import hashlib
@@ -104,6 +103,14 @@ async def _chat_completions_create(
         raise LLMError(
             f"Could not connect to the API. Please check your network connection. Details: {getattr(e, '__cause__', None)}"
         ) from e
+    except getattr(openai, "AuthenticationError", Exception) as e:
+        raise LLMError(
+            "Authentication failed. Please verify your OPENROUTER_API_KEY."
+        ) from e
+    except TimeoutError as e:
+        raise LLMError("The request to the API timed out. Please try again.") from e
+    except Exception as e:
+        raise LLMError(f"Unexpected error while calling the API: {e}") from e
 
 
 async def generate(prompt: str, model: str, temperature: float) -> Tuple[str, bool]:

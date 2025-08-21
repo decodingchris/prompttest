@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -11,6 +12,37 @@ from .discovery import PROMPTS_DIR
 from .models import TestResult
 
 REPORTS_DIR = Path(".prompttest_reports")
+
+_INVALID_CHARS_RE = re.compile(r'[<>:"/\\|?*\r\n\t]')
+
+
+def _sanitize_for_filename(s: str, fallback: str = "item") -> str:
+    """
+    Sanitize a string for safe cross-platform filenames.
+    - Replace path separators and invalid characters with underscores.
+    - Collapse repeated underscores and strip trailing dots/spaces/underscores.
+    - Provide a fallback if everything is stripped out.
+    """
+    s = (s or "").strip()
+    for ch in (os.sep, os.altsep) if os.altsep else (os.sep,):
+        if ch:
+            s = s.replace(ch, "_")
+    s = _INVALID_CHARS_RE.sub("_", s)
+    s = re.sub(r"_+", "_", s)
+    s = s.strip("._ ")
+    return s or fallback
+
+
+def report_filename_for(result: TestResult) -> str:
+    """Compute a safe filename for a test result's Markdown report."""
+    suite_name = _sanitize_for_filename(result.suite_path.stem, "suite")
+    test_id = _sanitize_for_filename(result.test_case.id, "test")
+    return f"{suite_name}-{test_id}.md"
+
+
+def report_path_for(result: TestResult, run_dir: Path) -> Path:
+    """Compute the full path (under run_dir) for a result's report file."""
+    return run_dir / report_filename_for(result)
 
 
 def create_run_directory() -> Path:
@@ -82,10 +114,7 @@ def _md_rel_path(target: Path, start: Path) -> str:
 
 def write_report_file(result: TestResult, run_dir: Path) -> None:
     """Writes a detailed .md file for a single test result."""
-    suite_name = result.suite_path.stem
-    test_id = result.test_case.id
-    filename = f"{suite_name}-{test_id}.md"
-    report_path = run_dir / filename
+    report_path = report_path_for(result, run_dir)
 
     status_emoji = "✅" if result.passed else "❌"
     status_text = "Pass" if result.passed else "Failure"
@@ -94,8 +123,14 @@ def write_report_file(result: TestResult, run_dir: Path) -> None:
     test_file_link = _md_rel_path(result.suite_path, run_dir)
     prompt_file_link = _md_rel_path(prompt_file_path, run_dir)
 
+    crit_lines = (result.test_case.criteria or "").strip().splitlines() or [""]
+    criteria_block = "\n".join(f"> {line}" if line else ">" for line in crit_lines)
+
+    eval_lines = (result.evaluation or "").strip().splitlines() or [""]
+    evaluation_block = "\n".join(f"> {line}" if line else ">" for line in eval_lines)
+
     content = f"""
-# {status_emoji} Test {status_text} Report: `{test_id}`
+# {status_emoji} Test {status_text} Report: `{result.test_case.id}`
 
 - **Test File**: [{result.suite_path}]({test_file_link})
 
@@ -115,13 +150,13 @@ def write_report_file(result: TestResult, run_dir: Path) -> None:
 ```
 
 ## Criteria
-> {result.test_case.criteria.strip()}
+{criteria_block}
 
 ## Response
 {result.response.strip()}
 
 ## Evaluation
-> {result.evaluation.strip()}
+{evaluation_block}
     """.strip()
 
     report_path.write_text(content, encoding="utf-8")

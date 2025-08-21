@@ -69,12 +69,23 @@ def _find_anchors(yaml_text: str) -> set[str]:
 
 
 def _find_anchor_dupes_in_text(yaml_text: str) -> list[str]:
-    """Return anchor names that appear more than once within a single YAML text."""
-    names = re.findall(r"&([A-Za-z0-9_-]+)", yaml_text)
-    counts: dict[str, int] = {}
-    for n in names:
-        counts[n] = counts.get(n, 0) + 1
-    return [n for n, c in counts.items() if c > 1]
+    """
+    Return anchor names that appear more than once within any single YAML document.
+    A single file may contain multiple YAML documents separated by '---' or '...'.
+    """
+    docs = re.split(r"(?m)^(?:---|\.\.\.)\s*$", yaml_text)
+    dupes: set[str] = set()
+    for doc in docs:
+        names = re.findall(r"&([A-Za-z0-9_-]+)", doc)
+        if not names:
+            continue
+        counts: dict[str, int] = {}
+        for n in names:
+            counts[n] = counts.get(n, 0) + 1
+        for n, c in counts.items():
+            if c > 1:
+                dupes.add(n)
+    return list(dupes)
 
 
 def discover_and_prepare_suites() -> List[TestSuite]:
@@ -101,7 +112,6 @@ def discover_and_prepare_suites() -> List[TestSuite]:
         if config_paths:
             texts = [_read_text_cached(p) for p in config_paths]
 
-            # Detect duplicate anchors within any single config file
             for p, txt in zip(config_paths, texts):
                 local_dupes = _find_anchor_dupes_in_text(txt)
                 if local_dupes:
@@ -173,3 +183,9 @@ def discover_and_prepare_suites() -> List[TestSuite]:
                 )
             )
     return suites
+
+
+def clear_caches() -> None:
+    """Clear discovery-level caches for deterministic fresh reads."""
+    _read_text_cached.cache_clear()
+    _load_yaml_file.cache_clear()

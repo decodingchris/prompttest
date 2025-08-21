@@ -11,6 +11,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from . import reporting
 from .discovery import PROMPTS_DIR
 from .models import TestResult, TestSuite
 
@@ -55,9 +56,7 @@ def _create_failure_panels(results: List[TestResult], run_dir: Path) -> List[Pan
                 )
             content = Text.from_markup(text)
         else:
-            suite_name = result.suite_path.stem
-            test_id = result.test_case.id
-            report_path = run_dir / f"{suite_name}-{test_id}.md"
+            report_path = reporting.report_path_for(result, run_dir)
 
             details_table = Table.grid(padding=(1, 2))
             details_table.add_column(style="bold blue", no_wrap=True)

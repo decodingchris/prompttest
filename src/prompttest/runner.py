@@ -125,6 +125,7 @@ async def run_all_tests(
     console = Console()
     start_time = time.perf_counter()
     try:
+        discovery.clear_caches()
         suites = discovery.discover_and_prepare_suites()
     except FileNotFoundError as e:
         if discovery.PROMPTTESTS_DIR.name in str(e):
@@ -143,7 +144,6 @@ async def run_all_tests(
         console.print("[yellow]No tests found.[/yellow]")
         return 0
 
-    # Apply optional filters
     test_file_globs = test_file_globs or []
     test_id_globs = test_id_globs or []
 
