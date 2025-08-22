@@ -32,7 +32,12 @@ def test_classify_patterns_subpath_without_extension(monkeypatch, in_tmp_project
     monkeypatch.setattr(discovery, "PROMPTTESTS_DIR", pt)
 
     files, ids = cli_mod._classify_patterns(["gamma/sample"])
-    assert files == ["gamma/sample.yml"]
+    assert sorted(files) == [
+        "gamma/sample/**/*.yaml",
+        "gamma/sample/**/*.yml",
+        "gamma/sample/*.yaml",
+        "gamma/sample/*.yml",
+    ]
     assert ids == []
 
 

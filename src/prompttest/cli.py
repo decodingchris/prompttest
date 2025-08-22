@@ -4,7 +4,7 @@ from typing import List, Tuple
 
 import typer
 
-from . import discovery, runner, ui
+from . import runner, ui
 
 
 app = typer.Typer(
@@ -160,10 +160,14 @@ def init():
 
 
 def _classify_patterns(patterns: List[str]) -> Tuple[List[str], List[str]]:
+    """
+    Classify positional tokens according to simple, explicit rules:
+    - dir: token ends with slash OR contains a slash and no .yml/.yaml -> recursive directory
+    - file: token ends with .yml or .yaml
+    - id: otherwise
+    """
+    file_globs: set[str] = set()
     id_globs: list[str] = []
-
-    pt_dir = discovery.PROMPTTESTS_DIR
-    pt_exists = pt_dir.is_dir()
 
     def has_sep(s: str) -> bool:
         return ("/" in s) or ("\\" in s)
@@ -172,70 +176,53 @@ def _classify_patterns(patterns: List[str]) -> Tuple[List[str], List[str]]:
         s2 = s.lower()
         return s2.endswith(".yml") or s2.endswith(".yaml")
 
-    file_patterns: set[str] = set()
+    for raw in patterns or []:
+        tok = (raw or "").strip()
+        if not tok:
+            continue
 
-    for tok in patterns or []:
+        if tok.endswith(("/", "\\")) or (has_sep(tok) and not has_yml_ext(tok)):
+            t = tok.rstrip("/\\")
+            if t:
+                file_globs.add(f"{t}/*.yml")
+                file_globs.add(f"{t}/*.yaml")
+                file_globs.add(f"{t}/**/*.yml")
+                file_globs.add(f"{t}/**/*.yaml")
+                if not has_sep(t):
+                    file_globs.add(f"**/{t}/*.yml")
+                    file_globs.add(f"**/{t}/*.yaml")
+                    file_globs.add(f"**/{t}/**/*.yml")
+                    file_globs.add(f"**/{t}/**/*.yaml")
+            continue
+
         if has_yml_ext(tok):
-            file_patterns.add(tok)
+            file_globs.add(tok)
             if not has_sep(tok):
-                file_patterns.add(f"**/{tok}")
-            continue
-
-        if not pt_exists:
-            id_globs.append(tok)
-            continue
-
-        candidates: list[str] = []
-        if has_sep(tok):
-            candidates += [tok, f"{tok}.yml", f"{tok}.yaml"]
-        else:
-            candidates += [
-                tok,
-                f"{tok}.yml",
-                f"{tok}.yaml",
-                f"**/{tok}.yml",
-                f"**/{tok}.yaml",
-            ]
-
-        matched = False
-        for c in candidates:
-            matches = [p for p in pt_dir.rglob(c) if p.is_file()]
-            if matches:
-                matched = True
-                if not has_sep(tok) and not has_yml_ext(tok):
-                    file_patterns.add(f"**/{tok}.yml")
-                    file_patterns.add(f"**/{tok}.yaml")
-                else:
-                    if has_yml_ext(c):
-                        file_patterns.add(c)
-                    else:
-                        file_patterns.add(f"{tok}.yml")
-                        file_patterns.add(f"{tok}.yaml")
-                break
-
-        if matched:
+                file_globs.add(f"**/{tok}")
             continue
 
         id_globs.append(tok)
 
-    return sorted(file_patterns), id_globs
+    return sorted(file_globs), id_globs
 
 
-@app.command(name="run", help="Discover and run tests. Supports file and id filters.")
+@app.command(
+    name="run",
+    help="Discover and run tests. Positional filters: dir/ (or nested/dir), file.yml, or id globs. For CI, use --dir/--file/--id.",
+)
 def run_command(
     patterns: List[str] | None = typer.Argument(
         None,
-        help="Positional filters: test-file globs (e.g., sub/*.yml) or test-id globs (e.g., check-*).",
+        help="Positional filters: dir/ (or nested/dir), file.yml, or id globs (e.g., check-*).",
     ),
-    test_file: List[str] | None = typer.Option(
-        None,
-        "--test-file",
-        help="Filter test files (globs) under 'prompttests/'. Repeatable.",
+    dir_: List[str] | None = typer.Option(
+        None, "--dir", help="Directory under 'prompttests/' (recursive). Repeatable."
     ),
-    test_id: List[str] | None = typer.Option(
-        None,
-        "--test-id",
-        help="Filter test ids by glob. Repeatable.",
+    file: List[str] | None = typer.Option(
+        None, "--file", help="File or file glob under 'prompttests/'. Repeatable."
+    ),
+    id_: List[str] | None = typer.Option(
+        None, "--id", help="Test id glob. Repeatable."
     ),
     max_concurrency: int | None = typer.Option(
         None,
@@ -245,10 +232,43 @@ def run_command(
         show_default=False,
     ),
 ):
+    pos_file_globs, pos_id_globs = _classify_patterns(patterns or [])
+
+    dir_file_globs: list[str] = []
+    for d in dir_ or []:
+        t = (d or "").strip().rstrip("/\\")
+        if not t:
+            continue
+        dir_file_globs += [f"{t}/*.yml", f"{t}/*.yaml"]
+        dir_file_globs += [f"{t}/**/*.yml", f"{t}/**/*.yaml"]
+        if "/" not in t and "\\" not in t:
+            dir_file_globs += [
+                f"**/{t}/*.yml",
+                f"**/{t}/*.yaml",
+                f"**/{t}/**/*.yml",
+                f"**/{t}/**/*.yaml",
+            ]
+
+    file_globs: list[str] = []
+    for f in file or []:
+        f2 = (f or "").strip()
+        if not f2:
+            continue
+        lower = f2.lower()
+        if lower.endswith(".yml") or lower.endswith(".yaml"):
+            if "/" not in f2 and "\\" not in f2:
+                file_globs.append(f"**/{f2}")
+            file_globs.append(f2)
+        else:
+            file_globs.append(f2)
+
+    all_file_globs = dir_file_globs + file_globs + pos_file_globs
+    all_id_globs = (id_ or []) + pos_id_globs
+
     exit_code = _execute_run(
-        patterns=patterns,
-        test_file=test_file,
-        test_id=test_id,
+        patterns=None,
+        test_file=all_file_globs or None,
+        test_id=all_id_globs or None,
         max_concurrency=max_concurrency,
     )
     if exit_code > 0:
