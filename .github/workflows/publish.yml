@@ -1,0 +1,68 @@
+# .github/workflows/publish.yml
+# This workflow is for building and publishing the package to PyPI and TestPyPI.
+
+name: Publish Package to PyPI
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  # --------------------------------------------------------------------------
+  #  Job 1: Build the package
+  #  This job builds the sdist and wheel artifacts. It is kept separate
+  #  from the publish job as a security best practice.
+  # --------------------------------------------------------------------------
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  # --------------------------------------------------------------------------
+  #  Job 2: Publish the package
+  #  This job publishes the package to PyPI or TestPyPI, depending on the
+  #  release type. It uses trusted publishing for authentication.
+  # --------------------------------------------------------------------------
+  publish:
+    name: Publish package to PyPI and TestPyPI
+    needs: [build]
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download the distribution packages
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publish package to PyPI
+        if: ${{ !github.event.release.prerelease }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Publish package to TestPyPI
+        if: ${{ github.event.release.prerelease }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
