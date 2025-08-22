@@ -14,6 +14,11 @@ from pydantic import BaseModel, ValidationError
 
 CACHE_DIR = Path(".prompttest_cache")
 
+_OPENROUTER_HEADERS = {
+    "HTTP-Referer": "https://github.com/decodingchris/prompttest",
+    "X-Title": "prompttest",
+}
+
 
 class LLMError(Exception):
     """Custom exception for LLM-related errors."""
@@ -56,6 +61,7 @@ def get_client() -> openai.AsyncOpenAI:
     return openai.AsyncOpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=api_key,
+        default_headers=_OPENROUTER_HEADERS,
     )
 
 
