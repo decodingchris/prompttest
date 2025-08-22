@@ -1,7 +1,5 @@
 # prompttest
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-
 pytest for LLMs.
 
 You wouldn't ship code without tests. ✋😮🤚
