@@ -36,7 +36,19 @@ prompttest init
 prompttest
 ```
 
-## Example
+## How It Works
+
+prompttest is built around 3 types of files:
+
+-   **Prompt** — a `.txt` file for your prompt template with `---[SECTIONS]---` and `{variables}`.
+
+-   **Test** — a `.yml` file for test cases with `config`, `inputs` and `criteria`.
+
+-   **Config** — a `.yml` file for default settings and `reusable` values.
+
+## Test Structure in Action
+
+### Prompt
 
 `prompts/customer_service.txt`
 
@@ -49,6 +61,8 @@ Your responses must be helpful and polite.
 Customer tier: {user_tier}
 Customer query: {user_query}
 ```
+
+### Test
 
 `prompttests/test_customer_service.yml`
 
@@ -65,15 +79,25 @@ tests:
     criteria: "The response must be a simple, polite greeting."
 ```
 
-## How It Works
+## Advanced Usage
 
-prompttest is built around 3 types of files:
+### Run all tests in a folder
 
--   **Prompt** — a `.txt` file for your prompt template with `---[SECTIONS]---` and `{variables}`.
+```bash
+prompttest run folder_name/
+```
 
--   **Test** — a `.yml` file for test cases with `config`, `inputs` and `criteria`.
+### Run all tests in a file
 
--   **Config** — a `.yml` file for default settings and `reusable` values.
+```bash
+prompttest run file_name.yml
+```
+
+### Run specific test
+
+```bash
+prompttest run test_id
+```
 
 ## Contributing
 

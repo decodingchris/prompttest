@@ -30,7 +30,7 @@ tests:
       user_tier: "Standard"
       product_name: *product_name # single value
       user_query: "How long do I have to return my watch?"
-    criteria: "The response must correctly state the 30-day return policy for the Chrono-Watch."
+    criteria: "The response must state that the return period is 30 days from the date of purchase."
 
   # Test 3: Check for premium member benefits
   # This test demonstrates reusing a group of values from `prompttest.yml`.
