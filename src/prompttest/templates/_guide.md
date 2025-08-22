@@ -58,7 +58,7 @@ This file runs a set of tests against a prompt.
 
 **Example:**
 
-`prompttests/main.yml`
+`prompttests/test_customers.yml`
 
 ```yaml
 config:

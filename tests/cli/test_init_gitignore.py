@@ -146,7 +146,7 @@ def test_init_template_missing_reports_filename(
     monkeypatch, in_tmp_project: Path, capsys
 ):
     tdir = Path(cli_mod.__file__).parent / "templates"
-    missing = tdir / "_main_suite.yml"
+    missing = tdir / "_test_customers.yml"
     orig = Path.read_text
 
     def fake_read_text(self: Path, *args, **kwargs):
@@ -162,7 +162,7 @@ def test_init_template_missing_reports_filename(
     assert excinfo.value.exit_code == 1
     captured = capsys.readouterr()
     assert "Template file not found" in captured.err
-    assert "_main_suite.yml" in captured.err
+    assert "_test_customers.yml" in captured.err
 
 
 def test_init_bubbles_up_permission_error_on_file_write(

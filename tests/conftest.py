@@ -58,9 +58,9 @@ def template_texts(templates_dir: Path) -> Dict[str, str]:
         "prompttests/prompttest.yml": (templates_dir / "_global_config.yml").read_text(
             encoding="utf-8"
         ),
-        "prompttests/main.yml": (templates_dir / "_main_suite.yml").read_text(
-            encoding="utf-8"
-        ),
+        "prompttests/test_customers.yml": (
+            templates_dir / "_test_customers.yml"
+        ).read_text(encoding="utf-8"),
         "prompttests/GUIDE.md": (templates_dir / "_guide.md").read_text(
             encoding="utf-8"
         ),

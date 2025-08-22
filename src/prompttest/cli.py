@@ -58,7 +58,7 @@ def init():
         global_config_template = (templates_dir / "_global_config.yml").read_text(
             encoding="utf-8"
         )
-        main_suite_template = (templates_dir / "_main_suite.yml").read_text(
+        example_suite_template = (templates_dir / "_test_customers.yml").read_text(
             encoding="utf-8"
         )
     except FileNotFoundError as e:
@@ -77,8 +77,8 @@ def init():
             "description": "Global configuration",
         },
         {
-            "path": Path("prompttests/main.yml"),
-            "content": main_suite_template,
+            "path": Path("prompttests/test_customers.yml"),
+            "content": example_suite_template,
             "description": "Example test suite",
         },
         {
@@ -208,7 +208,7 @@ def _classify_patterns(patterns: List[str]) -> Tuple[List[str], List[str]]:
 
 @app.command(
     name="run",
-    help="Discover and run tests. Positional filters: dir/ (or nested/dir), file.yml, or id globs. For CI, use --dir/--file/--id.",
+    help="Run tests. Filter by directory (e.g., customers/), file (test_customers.yml), or test ID (check-*).",
 )
 def run_command(
     patterns: List[str] | None = typer.Argument(
