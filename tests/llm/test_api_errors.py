@@ -56,7 +56,7 @@ def test_get_client_raises_without_env(monkeypatch):
 
 def test_get_client_succeeds_with_env(monkeypatch):
     class FakeOpenAI:
-        def __init__(self, base_url: str, api_key: str):
+        def __init__(self, base_url: str, api_key: str, **kwargs: Any):
             assert api_key == "k"
             self.chat = _Chat("HELLO")
 
