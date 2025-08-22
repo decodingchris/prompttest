@@ -13,6 +13,7 @@ This guide covers the main features of `prompttest`.
 `prompttest` works by looking for files in 2 specific folders:
 
 -   `prompts/`: Your prompts live here as `.txt` files.
+
 -   `prompttests/`: Your tests and configs live here as `.yml` files.
 
 ## Anatomy of a Test
@@ -26,7 +27,9 @@ This is a simple text file containing your prompt.
 It uses sections and variables.
 
 -   `---[SYSTEM]---`: Defines the system prompt or initial instructions.
+
 -   `---[USER]---`: Defines the user's message or input.
+
 -   `{variable_name}`: Placeholders that will be filled in by your test cases.
 
 **Example:**
@@ -48,17 +51,24 @@ Customer query: {user_query}
 This file runs a set of tests against a prompt.
 
 -   **`config` block:** Settings for all tests in this file.
+
     -   `prompt`: The name of the prompt to test (without `.txt`).
+
     -   `generation_model` (optional): Use a specific model to write responses.
+
     -   `evaluation_model` (optional): Use a specific model to judge responses.
+
 -   **`tests` block:** A list of your test cases. **Each test starts with a dash (`-`)** and needs the following keys:
+
     -   `id`: A unique name for the test.
+
     -   `inputs`: The values for the prompt's {variable_name} placeholders.
+
     -   `criteria`: Instructions for the AI judge.
 
 **Example:**
 
-`prompttests/main.yml`
+`prompttests/test_customers.yml`
 
 ```yaml
 config:
@@ -81,10 +91,15 @@ This file is the key to keeping your tests clean and organized.
 It lets you define settings and reusable values that can be shared across all your tests.
 
 -   **`config` block:** Defines the default settings for all tests.
+
     -   `generation_model`: The default model that writes the response.
+
     -   `evaluation_model`: The default model that judges the response.
+
 -   **`reusable` block:** Define values you use often.
+
     -   `&`: Create a named reusable value or group.
+
     -   `>`: Write a long, multi-line string.
 
 **Example:**
@@ -111,6 +126,7 @@ reusable:
 You can then use these reusable values in any test file.
 
 -   `*`: Use a reusable value.
+
 -   `<<:`: Use a reusable group of values.
 
 **Example:**
@@ -129,6 +145,27 @@ tests:
       user_query: "My watch is slow."
     criteria: *is_polite        # Loads the multi-line criteria
 ```
+
+## Advanced Usage: Filtering Tests
+
+While `prompttest` runs all tests by default, you can use the `run` command to target specific tests.
+
+-   **Run all tests in a folder:**
+    ```bash
+    prompttest run customer_service/
+    ```
+
+-   **Run all tests in a file:**
+    ```bash
+    prompttest run test_customers.yml
+    ```
+
+-   **Run a specific test by ID:**
+    ```bash
+    # You can use a full ID or a wildcard pattern
+    prompttest run check-simple-greeting
+    prompttest run "check-*"
+    ```
 
 ## Organizing Larger Projects
 

@@ -5,6 +5,7 @@ description = "An automated testing framework for LLMs."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "anyio>=4.10.0",
     "httpx>=0.28.1",
     "openai>=1.99.9",
     "pydantic>=2.11.7",
@@ -19,6 +20,7 @@ dev = [
     "mypy>=1.17.1",
     "pre-commit>=4.3.0",
     "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
     "pytest-cov>=6.2.1",
     "ruff>=0.12.9",
 ]
@@ -35,6 +37,12 @@ addopts = [
     "--cov-branch",
     "--cov-report=term-missing",
     "--cov-report=html",
+]
+
+markers = [
+    "unit: fast, isolated tests that focus on a single component",
+    "integration: end-to-end or multi-component flows",
+    "performance: performance-sensitive tests that may be slower",
 ]
 
 [tool.coverage.run]

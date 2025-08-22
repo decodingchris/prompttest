@@ -10,7 +10,7 @@ Hold your prompts to the same standard. 😎👌🔥
 
 ## Features
 
-- **🔤 Test in Plain English:** Let an AI judge your prompts using criteria written in English.
+- **🔤 Test in Plain English:** Write your tests in English, and let an AI grade the response.
 
 - **🚀 Write Tests Faster:** Just list your inputs and criteria in a simple file—no code needed.
 
@@ -36,9 +36,15 @@ prompttest init
 prompttest
 ```
 
-## Example
+## How It Works
 
-`prompts/customer_service.txt`
+prompttest is built around 2 types of files:
+
+### Prompt
+
+A `.txt` file for your prompt template with `---[SECTIONS]---` and `{variables}`.
+
+Example: `prompts/customer_service.txt`
 
 ```txt
 ---[SYSTEM]---
@@ -50,7 +56,11 @@ Customer tier: {user_tier}
 Customer query: {user_query}
 ```
 
-`prompttests/test_customer_service.yml`
+### Test
+
+A  `.yml` file for test cases with `config`, `inputs` and `criteria`.
+
+Example: `prompttests/test_customer_service.yml`
 
 ```yaml
 config:
@@ -65,15 +75,25 @@ tests:
     criteria: "The response must be a simple, polite greeting."
 ```
 
-## How It Works
+## Advanced Usage
 
-prompttest is built around 3 types of files:
+### Run all tests in a folder
 
--   **Prompt** — a `.txt` file for your prompt template with `---[SECTIONS]---` and `{variables}`.
+```bash
+prompttest run folder_name/
+```
 
--   **Test** — a `.yml` file for test cases with `config`, `inputs` and `criteria`.
+### Run all tests in a file
 
--   **Config** — a `.yml` file for default settings and `reusable` values.
+```bash
+prompttest run file_name.yml
+```
+
+### Run specific test
+
+```bash
+prompttest run test_id
+```
 
 ## Contributing
 

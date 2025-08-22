@@ -6,8 +6,10 @@ config:
   prompt: customer_service
 
   # You can override global settings here.
-  # For example, let's use a different generation model for all the tests in this specific suite.
+  # For example, let's use a different generation model and a higher temperature
+  # for all the tests in this specific suite.
   generation_model: "z-ai/glm-4.5-air:free"
+  generation_temperature: 0.7
 
 tests:
   # Test 1: Check for a simple greeting
@@ -28,7 +30,7 @@ tests:
       user_tier: "Standard"
       product_name: *product_name # single value
       user_query: "How long do I have to return my watch?"
-    criteria: "The response must correctly state the 30-day return policy for the Chrono-Watch."
+    criteria: "The response must state that the return period is 30 days from the date of purchase."
 
   # Test 3: Check for premium member benefits
   # This test demonstrates reusing a group of values from `prompttest.yml`.

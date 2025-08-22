@@ -1,28 +1,49 @@
-import typer
+import asyncio
 from pathlib import Path
-from rich import print
-from rich.console import Group
-from rich.panel import Panel
-from rich.text import Text
+from typing import List, Tuple
+
+import typer
+
+from . import runner, ui
+
 
 app = typer.Typer(
     help="An automated testing framework for LLMs.",
+    invoke_without_command=True,
+    no_args_is_help=False,
 )
 
 
-@app.command()
+def _execute_run(
+    *,
+    patterns: List[str] | None,
+    test_file: List[str] | None,
+    test_id: List[str] | None,
+    max_concurrency: int | None,
+) -> int:
+    pos_file_globs, pos_id_globs = _classify_patterns(patterns or [])
+    all_file_globs = (test_file or []) + pos_file_globs
+    all_id_globs = (test_id or []) + pos_id_globs
+
+    if all_file_globs or all_id_globs or max_concurrency is not None:
+        return asyncio.run(
+            runner.run_all_tests(
+                test_file_globs=all_file_globs or None,
+                test_id_globs=all_id_globs or None,
+                max_concurrency=max_concurrency,
+            )
+        )
+    return asyncio.run(runner.run_all_tests())
+
+
+@app.command(help="Setup prompttest in the current directory.")
 def init():
-    """
-    Initializes a new prompttest project with an example.
-    This command is idempotent and non-destructive.
-    """
-    print()
-    print("[bold]Initializing prompttest project[green]...[/green][/bold]")
+    ui.render_init_header()
 
     gitignore_path = Path(".gitignore")
     if gitignore_path.is_dir():
-        print(
-            "[bold red]Error:[/bold red] '.gitignore' exists but it is a directory. "
+        ui.render_error(
+            "'.gitignore' exists but it is a directory. "
             "Please remove or rename it and run init again."
         )
         raise typer.Exit(code=1)
@@ -37,19 +58,11 @@ def init():
         global_config_template = (templates_dir / "_global_config.yml").read_text(
             encoding="utf-8"
         )
-        main_suite_template = (templates_dir / "_main_suite.yml").read_text(
+        example_suite_template = (templates_dir / "_test_customers.yml").read_text(
             encoding="utf-8"
         )
     except FileNotFoundError as e:
-        error_message = Text.from_markup(
-            f"[bold red]Error:[/bold red] Template file not found: {e.filename}"
-        )
-        error_message.no_wrap = True
-        error_message.overflow = "ignore"
-        print(error_message)
-        if e.filename:
-            print(Path(e.filename).name)
-        print("Please ensure you are running a valid installation of prompttest.")
+        ui.render_template_error(e)
         raise typer.Exit(code=1)
 
     files_to_scaffold = [
@@ -64,8 +77,8 @@ def init():
             "description": "Global configuration",
         },
         {
-            "path": Path("prompttests/main.yml"),
-            "content": main_suite_template,
+            "path": Path("prompttests/test_customers.yml"),
+            "content": example_suite_template,
             "description": "Example test suite",
         },
         {
@@ -86,7 +99,7 @@ def init():
         },
     ]
 
-    report = []
+    scaffold_report = []
     for file_spec in files_to_scaffold:
         path = file_spec["path"]
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -95,10 +108,11 @@ def init():
             status = "[dim green](created)[/dim green]"
         else:
             status = "[dim](exists, skipped)[/dim]"
-        report.append((file_spec, status))
+        scaffold_report.append((file_spec, status))
 
     gitignore_definitions = [
         ("# prompttest cache", ".prompttest_cache/"),
+        ("# Test reports", ".prompttest_reports/"),
         ("# Environment variables", ".env"),
     ]
 
@@ -116,7 +130,6 @@ def init():
     action = "Skipped"
     if entries_to_append:
         action = "Updated" if not was_new else "Created"
-
         eol = "\n"
         if not was_new:
             try:
@@ -124,17 +137,14 @@ def init():
                     eol = "\r\n"
             except Exception:
                 pass
-
         prefix = ""
         if not was_new and content_before_append:
             if not content_before_append.endswith("\n"):
                 prefix = eol * 2
             elif not content_before_append.endswith("\n\n"):
                 prefix = eol
-
         normalized_entries = [s.replace("\n", eol) for s in entries_to_append]
         string_to_write = prefix + (eol * 2).join(normalized_entries) + eol
-
         with gitignore_path.open("a", encoding="utf-8", newline="") as f:
             f.write(string_to_write)
 
@@ -145,103 +155,146 @@ def init():
     else:
         gitignore_display_status = "[dim](exists, skipped)[/dim]"
 
-    print()
-    print("[bold green]Successfully initialized prompttest![/bold green]")
-    print()
-    print("Project structure:")
-    for file_spec, status in report:
-        description = file_spec.get("description", "An example test file")
-        warning = file_spec.get("warning")
-        path = file_spec["path"]
+    ui.render_init_report(scaffold_report, gitignore_display_status)
+    ui.render_init_next_steps()
 
-        display_path = (
-            f"{path.parent.name}/{path.name}"
-            if not path.name.startswith(".")
-            else path.name
-        )
 
-        if warning:
-            full_description = f"{description}[red]{warning}[/red]"
-            print(
-                f"  - [bold]{display_path:<30}[/bold] {full_description:<56} {status}"
-            )
+def _classify_patterns(patterns: List[str]) -> Tuple[List[str], List[str]]:
+    """
+    Classify positional tokens according to simple, explicit rules:
+    - dir: token ends with slash OR contains a slash and no .yml/.yaml -> recursive directory
+    - file: token ends with .yml or .yaml
+    - id: otherwise
+    """
+    file_globs: set[str] = set()
+    id_globs: list[str] = []
+
+    def has_sep(s: str) -> bool:
+        return ("/" in s) or ("\\" in s)
+
+    def has_yml_ext(s: str) -> bool:
+        s2 = s.lower()
+        return s2.endswith(".yml") or s2.endswith(".yaml")
+
+    for raw in patterns or []:
+        tok = (raw or "").strip()
+        if not tok:
+            continue
+
+        if tok.endswith(("/", "\\")) or (has_sep(tok) and not has_yml_ext(tok)):
+            t = tok.rstrip("/\\")
+            if t:
+                file_globs.add(f"{t}/*.yml")
+                file_globs.add(f"{t}/*.yaml")
+                file_globs.add(f"{t}/**/*.yml")
+                file_globs.add(f"{t}/**/*.yaml")
+                if not has_sep(t):
+                    file_globs.add(f"**/{t}/*.yml")
+                    file_globs.add(f"**/{t}/*.yaml")
+                    file_globs.add(f"**/{t}/**/*.yml")
+                    file_globs.add(f"**/{t}/**/*.yaml")
+            continue
+
+        if has_yml_ext(tok):
+            file_globs.add(tok)
+            if not has_sep(tok):
+                file_globs.add(f"**/{tok}")
+            continue
+
+        id_globs.append(tok)
+
+    return sorted(file_globs), id_globs
+
+
+@app.command(
+    name="run",
+    help="Run tests. Filter by directory (e.g., customers/), file (test_customers.yml), or test ID (check-*).",
+)
+def run_command(
+    patterns: List[str] | None = typer.Argument(
+        None,
+        help="Positional filters: dir/ (or nested/dir), file.yml, or id globs (e.g., check-*).",
+    ),
+    dir_: List[str] | None = typer.Option(
+        None, "--dir", help="Directory under 'prompttests/' (recursive). Repeatable."
+    ),
+    file: List[str] | None = typer.Option(
+        None, "--file", help="File or file glob under 'prompttests/'. Repeatable."
+    ),
+    id_: List[str] | None = typer.Option(
+        None, "--id", help="Test id glob. Repeatable."
+    ),
+    max_concurrency: int | None = typer.Option(
+        None,
+        "--max-concurrency",
+        min=0,
+        help="Cap concurrent test cases (default: 8). Use 0 for unlimited.",
+        show_default=False,
+    ),
+):
+    pos_file_globs, pos_id_globs = _classify_patterns(patterns or [])
+
+    dir_file_globs: list[str] = []
+    for d in dir_ or []:
+        t = (d or "").strip().rstrip("/\\")
+        if not t:
+            continue
+        dir_file_globs += [f"{t}/*.yml", f"{t}/*.yaml"]
+        dir_file_globs += [f"{t}/**/*.yml", f"{t}/**/*.yaml"]
+        if "/" not in t and "\\" not in t:
+            dir_file_globs += [
+                f"**/{t}/*.yml",
+                f"**/{t}/*.yaml",
+                f"**/{t}/**/*.yml",
+                f"**/{t}/**/*.yaml",
+            ]
+
+    file_globs: list[str] = []
+    for f in file or []:
+        f2 = (f or "").strip()
+        if not f2:
+            continue
+        lower = f2.lower()
+        if lower.endswith(".yml") or lower.endswith(".yaml"):
+            if "/" not in f2 and "\\" not in f2:
+                file_globs.append(f"**/{f2}")
+            file_globs.append(f2)
         else:
-            print(f"  - [bold]{display_path:<30}[/bold] {description:<45} {status}")
+            file_globs.append(f2)
 
-    print(
-        f"  - [bold]{'.gitignore':<30}[/bold] {'Files for Git to ignore':<45} {gitignore_display_status}"
+    all_file_globs = dir_file_globs + file_globs + pos_file_globs
+    all_id_globs = (id_ or []) + pos_id_globs
+
+    exit_code = _execute_run(
+        patterns=None,
+        test_file=all_file_globs or None,
+        test_id=all_id_globs or None,
+        max_concurrency=max_concurrency,
     )
-    print()
-    print("[bold]Next steps:[/bold]")
-    print()
-    print("[bold]1. Get your OpenRouter API key[/bold]")
-    print()
-    print("   [grey50]prompttest uses OpenRouter to give you access to a wide[/grey50]")
-    print(
-        "   [grey50]range of LLMs (including free models) with a single API key.[/grey50]"
-    )
-    print()
-    print(
-        "   Get yours at: [link=https://openrouter.ai/keys]https://openrouter.ai/keys[/link]"
-    )
-    panel_group = Group(
-        Text.from_markup(
-            "Open the [bold cyan].env[/bold cyan] file and ensure it contains:"
-        ),
-        Text.from_markup(
-            "\n  [grey50]OPENROUTER_API_KEY=[/grey50][yellow]your_key_here[/yellow]"
-        ),
-        Text.from_markup(
-            "\nReplace [yellow]your_key_here[/yellow] with your actual key."
-        ),
-    )
-    print()
-    print("[bold]2. Add your API key to the `.env` file:[/bold]")
-    print()
-    print(
-        Panel(
-            panel_group,
-            title="[bold]API Key Setup[/bold]",
-            border_style="blue",
-            expand=False,
-            padding=(1, 2),
-        )
-    )
-    print()
-    print("[bold]3. Run `prompttest` to see your example tests run![/bold]")
-    print()
-    print(
-        "   [dim]The examples are configured to be run for free (with a free model).[/dim]"
-    )
-    print("   [dim]For sensitive data, consider a paid model as free providers[/dim]")
-    print("   [dim]may use your prompts and completions for training.[/dim]")
-    print()
-    print("[bold]4. Edit the files to start building your own tests.[/bold]")
-    print()
-    print(
-        "[bold]5. Check out [cyan]prompttests/GUIDE.md[/cyan] for more details.[/bold]"
-    )
-    print()
-    print("[bold]Happy testing[green]![/green][/bold]")
-    print()
+    if exit_code > 0:
+        raise typer.Exit(code=exit_code)
 
 
-@app.command(name="run")
-def run_command():
-    """
-    Discovers and runs all tests in the `prompttests/` directory.
-    """
-    print("TODO: Implement the run command.")
-
-
-@app.callback(invoke_without_command=True)
-def main(ctx: typer.Context):
-    """
-    If no command is specified, run the `run` command.
-    """
+@app.callback(
+    invoke_without_command=True,
+)
+def main(
+    ctx: typer.Context,
+    max_concurrency: int | None = typer.Option(
+        None,
+        "--max-concurrency",
+        min=0,
+        help="Cap concurrent test cases (default: 8). Use 0 for unlimited.",
+        show_default=False,
+    ),
+):
     if ctx.invoked_subcommand is None:
-        ctx.invoke(run_command)
+        exit_code = _execute_run(
+            patterns=None,
+            test_file=None,
+            test_id=None,
+            max_concurrency=max_concurrency,
+        )
 
-
-if __name__ == "__main__":
-    app()
+        if exit_code > 0:
+            raise typer.Exit(code=exit_code)
