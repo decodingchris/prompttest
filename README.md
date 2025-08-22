@@ -38,19 +38,13 @@ prompttest
 
 ## How It Works
 
-prompttest is built around 3 types of files:
-
--   **Prompt** — a `.txt` file for your prompt template with `---[SECTIONS]---` and `{variables}`.
-
--   **Test** — a `.yml` file for test cases with `config`, `inputs` and `criteria`.
-
--   **Config** — a `.yml` file for default settings and `reusable` values.
-
-## Test Structure in Action
+prompttest is built around 2 types of files:
 
 ### Prompt
 
-`prompts/customer_service.txt`
+A `.txt` file for your prompt template with `---[SECTIONS]---` and `{variables}`.
+
+Example: `prompts/customer_service.txt`
 
 ```txt
 ---[SYSTEM]---
@@ -64,7 +58,9 @@ Customer query: {user_query}
 
 ### Test
 
-`prompttests/test_customer_service.yml`
+A  `.yml` file for test cases with `config`, `inputs` and `criteria`.
+
+Example: `prompttests/test_customer_service.yml`
 
 ```yaml
 config:
