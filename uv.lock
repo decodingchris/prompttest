@@ -445,7 +445,7 @@ wheels = [
 
 [[package]]
 name = "prompttest"
-version = "0.2.1a2"
+version = "0.2.1"
 source = { editable = "." }
 dependencies = [
     { name = "anyio" },
