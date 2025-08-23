@@ -12,7 +12,7 @@ You wouldn't ship code without tests. ✋😮🤚
 
 Hold your prompts to the same standard. 😎👌🔥
 
-![Demo](demo.gif)
+![A demo of prompttest](https://raw.githubusercontent.com/decodingchris/prompttest/main/demo.gif)
 
 ## Features
 
