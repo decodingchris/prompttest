@@ -1,6 +1,6 @@
 [project]
 name = "prompttest"
-version = "0.2.1a1"
+version = "0.2.1a2"
 description = "pytest for LLMs"
 readme = "README.md"
 requires-python = ">=3.11"
