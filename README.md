@@ -1,10 +1,18 @@
 # prompttest
 
+[![Build Status](https://github.com/decodingchris/prompttest/actions/workflows/ci.yml/badge.svg)](https://github.com/decodingchris/prompttest/actions)
+[![PyPI version](https://img.shields.io/pypi/v/prompttest.svg)](https://pypi.org/project/prompttest/)
+[![PyPI - Python Versions](https://img.shields.io/pypi/pyversions/prompttest.svg)](https://pypi.org/project/prompttest/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/prompttest.svg)](https://pypi.org/project/prompttest/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/decodingchris/prompttest/blob/main/LICENSE)
+
 pytest for LLMs.
 
 You wouldn't ship code without tests. ✋😮🤚
 
 Hold your prompts to the same standard. 😎👌🔥
+
+![Demo](demo.gif)
 
 ## Features
 
