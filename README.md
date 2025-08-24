@@ -3,7 +3,7 @@
 [![Build Status](https://github.com/decodingchris/prompttest/actions/workflows/ci.yml/badge.svg)](https://github.com/decodingchris/prompttest/actions)
 [![PyPI version](https://img.shields.io/pypi/v/prompttest.svg)](https://pypi.org/project/prompttest/)
 [![PyPI - Python Versions](https://img.shields.io/pypi/pyversions/prompttest.svg)](https://pypi.org/project/prompttest/)
-[![PyPI downloads](https://img.shields.io/pypi/dm/prompttest.svg)](https://pypi.org/project/prompttest/)
+[![PyPI Downloads](https://static.pepy.tech/badge/prompttest/month)](https://pepy.tech/projects/prompttest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/decodingchris/prompttest/blob/main/LICENSE)
 
 pytest for LLMs.
