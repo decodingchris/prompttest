@@ -46,7 +46,7 @@ prompttest
 
 prompttest is built around 2 types of files:
 
-### Prompt
+### The Prompt File (.txt)
 
 A `.txt` file for your prompt template with `---[SECTIONS]---` and `{variables}`.
 
@@ -54,15 +54,21 @@ Example: `prompts/customer_service.txt`
 
 ```txt
 ---[SYSTEM]---
-You are an expert on the "{product_name}".
-Your responses must be helpful and polite.
+You are a customer service agent for "ChronoCorp" and an expert on the "{product_name}".
+Always be helpful, polite, and empathetic. Address the customer by name if it is provided.
+
+Style rules:
+- If the customer's message is only a greeting (e.g., "hi", "hello", "hey"):
+  - Reply with one short, polite greeting.
+  - Add nothing else: no extra sentences, questions, emojis, or marketing text.
+- For other messages, answer concisely and only with information relevant to the request.
 
 ---[USER]---
-Customer tier: {user_tier}
+Customer name: {user_name}
 Customer query: {user_query}
 ```
 
-### Test
+### The Test File (.yml)
 
 A  `.yml` file for test cases with `config`, `inputs` and `criteria`.
 
@@ -76,10 +82,28 @@ tests:
   - id: check-simple-greeting
     inputs:
       product_name: "Chrono-Watch"
-      user_tier: "Standard"
+      user_name: "Jane"
       user_query: "Hello"
     criteria: "The response must be a simple, polite greeting."
 ```
+
+### The Result
+
+When you run prompttest, you get two outputs:
+
+#### The Console Summary
+
+A pass/fail summary right in your terminal.
+
+![A console summary of prompttest](https://raw.githubusercontent.com/decodingchris/prompttest/main/console-summary.png)
+
+#### The Markdown Report
+
+A detailed Markdown report for every single test.
+
+Example: `.prompttest_reports/latest/test_customer_service-check-simple-greeting.md`
+
+![A markdown report of prompttest](https://raw.githubusercontent.com/decodingchris/prompttest/main/markdown-report.png)
 
 ## Advanced Usage
 
